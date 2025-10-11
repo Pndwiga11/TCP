@@ -1,0 +1,871 @@
+import socket
+import threading
+import time
+import signal
+import sys
+from pprint import pprint
+from pathlib import Path
+
+# testing flag for dev runs
+TESTING = True  # toggle flag
+
+# shutdown flag
+shutdown_flag = False
+
+distribution_state = {
+    'pieces': [],
+    'total_pieces': 0,
+    'file_name': '',
+    'original_bytes': b'',
+    'peer_paths': {},
+    'peer_pieces': {},
+    'peer_completed': set(),
+    'written': set(),
+    'seed_assignments': {},
+    'leecher_to_seed': {},
+    'seed_piece_plan': {},
+    'seed_ids': set(),
+    'peer_roles': {},
+    'lock': threading.Lock()
+}
+
+def signal_handler(sig, frame):
+    """handle ctrl+c"""
+    global shutdown_flag
+    print("\n\n" + "="*60)
+    print("Ctrl+C detected! Shutting down all peers...")
+    print("="*60)
+    shutdown_flag = True
+    sys.exit(0)
+
+# register signal handler
+signal.signal(signal.SIGINT, signal_handler)
+
+def read_common_config(filename='project_config_file_small/Common.cfg'):
+    """load common cfg"""
+    config = {}
+    with open(filename, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                parts = line.split()
+                if len(parts) == 2:
+                    key, value = parts
+                    if key in ['NumberOfPreferredNeighbors', 'UnchokingInterval', 
+                              'OptimisticUnchokingInterval', 'FileSize', 'PieceSize']:
+                        config[key] = int(value)
+                    else:
+                        config[key] = value
+    return config
+
+def read_peer_info(filename='project_config_file_small/PeerInfo.cfg'):
+    """load peer info for testing"""
+    peers = []
+    with open(filename, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                parts = line.split()
+                if len(parts) == 4:
+                    peer = {
+                        'peer_id': int(parts[0]),
+                        'hostname': parts[1],
+                        'port': int(parts[2]),
+                        'has_file': int(parts[3]) == 1,
+                        'directory': Path('project_config_file_small') / parts[0]
+                    }
+                    peers.append(peer)
+    
+    # override host and port in test
+    if TESTING:
+        print("\n" + "!"*60)
+        print("TESTING MODE: Converting to localhost with unique ports")
+        print("!"*60 + "\n")
+        
+        for i, peer in enumerate(peers):
+            peer['hostname'] = 'localhost'
+            peer['port'] = 6000 + peer['peer_id']  # peer id as port offset
+    
+    return peers
+
+
+def assign_leechers_to_seeds(peers):
+    """balance leechers across seeds"""
+    seeds = sorted(
+        [peer for peer in peers if peer['has_file']],
+        key=lambda peer: peer['peer_id']
+    )
+    leechers = sorted(
+        [peer for peer in peers if not peer['has_file']],
+        key=lambda peer: peer['peer_id']
+    )
+
+    seed_assignments = {seed['peer_id']: [] for seed in seeds}
+    leecher_to_seed = {}
+    fairness_summary = {
+        'total_leechers': len(leechers),
+        'seed_ids': [seed['peer_id'] for seed in seeds],
+        'baseline_leechers_per_seed': 0,
+        'remainder': 0,
+        'per_seed': {}
+    }
+
+    if not seeds or not leechers:
+        for seed in seeds:
+            fairness_summary['per_seed'][seed['peer_id']] = 0
+        return seed_assignments, leecher_to_seed, fairness_summary
+
+    base = len(leechers) // len(seeds)
+    remainder = len(leechers) % len(seeds)
+    fairness_summary['baseline_leechers_per_seed'] = base
+    fairness_summary['remainder'] = remainder
+
+    index = 0
+    for position, seed in enumerate(seeds):
+        count = base + (1 if position < remainder else 0)
+        assigned_leechers = leechers[index:index + count]
+        seed_assignments[seed['peer_id']] = assigned_leechers
+        fairness_summary['per_seed'][seed['peer_id']] = len(assigned_leechers)
+
+        for leecher in assigned_leechers:
+            leecher_to_seed[leecher['peer_id']] = seed['peer_id']
+
+        index += count
+
+    return seed_assignments, leecher_to_seed, fairness_summary
+
+
+def plan_piece_distribution(peers, common_config):
+    """balance pieces across seeds"""
+    seeds = sorted(
+        [peer for peer in peers if peer['has_file']],
+        key=lambda peer: peer['peer_id']
+    )
+
+    assignments = {seed['peer_id']: [] for seed in seeds}
+    summary = {
+        'total_pieces': 0,
+        'baseline_pieces_per_seed': 0,
+        'remainder': 0,
+        'per_seed': {}
+    }
+
+    if not seeds:
+        return assignments, summary
+
+    file_size = common_config.get('FileSize', 0) or 0
+    piece_size = common_config.get('PieceSize', 0) or 0
+
+    if piece_size <= 0:
+        return assignments, summary
+
+    total_pieces = (file_size + piece_size - 1) // piece_size if file_size > 0 else 0
+    summary['total_pieces'] = total_pieces
+
+    if total_pieces == 0:
+        for seed in seeds:
+            summary['per_seed'][seed['peer_id']] = 0
+        return assignments, summary
+
+    base = total_pieces // len(seeds)
+    remainder = total_pieces % len(seeds)
+    summary['baseline_pieces_per_seed'] = base
+    summary['remainder'] = remainder
+
+    next_piece = 0
+    for position, seed in enumerate(seeds):
+        count = base + (1 if position < remainder else 0)
+        pieces = list(range(next_piece, next_piece + count))
+        assignments[seed['peer_id']] = pieces
+        summary['per_seed'][seed['peer_id']] = len(pieces)
+        next_piece += count
+
+    return assignments, summary
+
+
+def load_file_pieces(peers, common_config):
+    """read source file into pieces"""
+    file_name = common_config.get('FileName', 'thefile')
+    piece_size = common_config.get('PieceSize', 0) or 0
+
+    source_path = None
+    for peer in peers:
+        if peer['has_file']:
+            candidate = peer.get('directory')
+            if candidate is not None:
+                candidate_path = candidate / file_name
+            else:
+                candidate_path = Path('project_config_file_small') / str(peer['peer_id']) / file_name
+            if candidate_path.exists():
+                source_path = candidate_path
+                break
+
+    file_bytes = b''
+    if source_path and source_path.exists():
+        file_bytes = source_path.read_bytes()
+        print(f"\nLoaded source file from {source_path} ({len(file_bytes)} bytes)")
+    else:
+        print("\nWarning: Unable to locate source file in seed directories. Starting with empty data set.")
+
+    if piece_size > 0:
+        pieces = [
+            file_bytes[offset:offset + piece_size]
+            for offset in range(0, len(file_bytes), piece_size)
+        ]
+        if not pieces:
+            pieces = [b'']
+    else:
+        pieces = [file_bytes]
+
+    return pieces, file_name, file_bytes
+
+
+def initialize_distribution_state(peers, pieces, file_name, original_bytes,
+                                  seed_assignments, leecher_to_seed, seed_piece_plan):
+    """init distribution state"""
+    total_pieces = len(pieces)
+
+    with distribution_state['lock']:
+        distribution_state['pieces'] = pieces
+        distribution_state['total_pieces'] = total_pieces
+        distribution_state['file_name'] = file_name
+        distribution_state['original_bytes'] = original_bytes
+        distribution_state['peer_paths'] = {}
+        distribution_state['peer_pieces'] = {}
+        distribution_state['peer_completed'] = set()
+        distribution_state['written'] = set()
+        distribution_state['seed_assignments'] = {
+            seed_id: {leecher['peer_id'] for leecher in leechers}
+            for seed_id, leechers in seed_assignments.items()
+        }
+        distribution_state['leecher_to_seed'] = dict(leecher_to_seed)
+        distribution_state['seed_piece_plan'] = {
+            seed_id: set(piece_list)
+            for seed_id, piece_list in seed_piece_plan.items()
+        }
+        distribution_state['seed_ids'] = {
+            peer['peer_id'] for peer in peers if peer['has_file']
+        }
+        distribution_state['peer_roles'] = {
+            peer['peer_id']: peer['has_file'] for peer in peers
+        }
+
+        base_dir = Path('project_config_file_small')
+        for peer in peers:
+            peer_id = peer['peer_id']
+            peer_dir = peer.get('directory') or (base_dir / str(peer_id))
+            peer_dir.mkdir(parents=True, exist_ok=True)
+            distribution_state['peer_paths'][peer_id] = peer_dir
+
+            if peer['has_file']:
+                distribution_state['peer_pieces'][peer_id] = set(range(total_pieces))
+            else:
+                distribution_state['peer_pieces'][peer_id] = set()
+
+
+def seed_deliver_initial_pieces(seed_id, assigned_leechers, seed_piece_plan):
+    """send seed pieces to leechers"""
+    delivered = False
+    target_indices = set(seed_piece_plan.get(seed_id, []))
+    if not target_indices:
+        return False
+
+    with distribution_state['lock']:
+        for leecher in assigned_leechers:
+            leecher_id = leecher['peer_id']
+            leecher_pieces = distribution_state['peer_pieces'].setdefault(leecher_id, set())
+            before = len(leecher_pieces)
+            leecher_pieces.update(target_indices)
+            if len(leecher_pieces) > before:
+                delivered = True
+
+    return delivered
+
+
+def leecher_request_assigned_pieces(peer_id, seed_id, seed_piece_plan):
+    """ensure leecher gets seed pieces"""
+    with distribution_state['lock']:
+        total_pieces = distribution_state['total_pieces']
+        if total_pieces == 0:
+            return True
+
+    if seed_id is None:
+        return True
+
+    target_indices = set(seed_piece_plan.get(seed_id, []))
+    if not target_indices:
+        return True
+
+    with distribution_state['lock']:
+        my_pieces = distribution_state['peer_pieces'].get(peer_id)
+        seed_pieces = distribution_state['peer_pieces'].get(seed_id)
+
+        if my_pieces is None or seed_pieces is None:
+            return False
+
+        missing = target_indices - my_pieces
+        if not missing:
+            return True
+
+        if not seed_pieces.issuperset(missing):
+            return False
+
+        my_pieces.update(target_indices)
+        return True
+
+
+def propagate_peer_pieces(peer_id, allowed_upload=None, allowed_targets=None):
+    """sync piece sets among peers"""
+    updated_peers = set()
+    with distribution_state['lock']:
+        my_pieces = distribution_state['peer_pieces'].get(peer_id)
+        if my_pieces is None:
+            return []
+
+        if allowed_upload is None:
+            uploadable = set(my_pieces)
+        else:
+            uploadable = set(my_pieces) & set(allowed_upload)
+
+        seed_ids = distribution_state['seed_ids']
+        seed_assignments = distribution_state['seed_assignments']
+        seed_piece_plan = distribution_state['seed_piece_plan']
+
+        for other_id, pieces in distribution_state['peer_pieces'].items():
+            if other_id == peer_id:
+                continue
+
+            missing_for_me = set(pieces - my_pieces)
+
+            if missing_for_me and other_id in seed_ids and peer_id not in seed_ids:
+                allowed_leechers = seed_assignments.get(other_id, set())
+                if peer_id not in allowed_leechers:
+                    missing_for_me.clear()
+                else:
+                    allowed_seed_pieces = seed_piece_plan.get(other_id, set())
+                    if allowed_seed_pieces:
+                        missing_for_me &= allowed_seed_pieces
+
+            if allowed_targets is not None and other_id not in allowed_targets:
+                available_for_other = set()
+            else:
+                available_for_other = uploadable
+
+            missing_for_other = available_for_other - pieces
+
+            if missing_for_me:
+                my_pieces.update(missing_for_me)
+                updated_peers.add(peer_id)
+
+            if missing_for_other:
+                pieces.update(missing_for_other)
+                updated_peers.add(other_id)
+
+    return list(updated_peers)
+
+
+def write_completed_file(peer_id):
+    """write assembled file once"""
+    with distribution_state['lock']:
+        if peer_id in distribution_state['written']:
+            return
+
+        pieces = distribution_state['pieces']
+        file_name = distribution_state['file_name']
+        peer_path = distribution_state['peer_paths'].get(peer_id)
+
+    if peer_path is None:
+        return
+
+    peer_path.mkdir(parents=True, exist_ok=True)
+    output_path = peer_path / file_name
+    with open(output_path, 'wb') as f:
+        for chunk in pieces:
+            f.write(chunk)
+
+    with distribution_state['lock']:
+        distribution_state['written'].add(peer_id)
+
+    print(f"[Peer {peer_id}] Assembled file written to {output_path}")
+
+
+def evaluate_completion(peer_id):
+    """check peer and swarm done"""
+    global shutdown_flag
+    write_targets = []
+    swarm_complete = False
+
+    with distribution_state['lock']:
+        total_pieces = distribution_state['total_pieces']
+        peer_pieces = distribution_state['peer_pieces'].get(peer_id, set())
+
+        if total_pieces == len(peer_pieces):
+            if peer_id not in distribution_state['peer_completed']:
+                distribution_state['peer_completed'].add(peer_id)
+                write_targets.append(peer_id)
+
+        peer_count = len(distribution_state['peer_pieces'])
+        if peer_count and len(distribution_state['peer_completed']) == peer_count:
+            swarm_complete = True
+
+    for pid in write_targets:
+        write_completed_file(pid)
+
+    if swarm_complete and not shutdown_flag:
+        print("\n" + "="*60)
+        print("All peers now have the complete dataset. Initiating coordinated shutdown.")
+        print("="*60)
+        shutdown_flag = True
+
+
+def reset_project_files(peers, file_name):
+    """restore files so only seeds keep data"""
+    base_dir = Path('project_config_file_small')
+    removed = []
+    restored = []
+
+    with distribution_state['lock']:
+        original_bytes = distribution_state.get('original_bytes', b'')
+        total_pieces = distribution_state.get('total_pieces', 0)
+
+    for peer in peers:
+        peer_dir = peer.get('directory') or (base_dir / str(peer['peer_id']))
+        target = peer_dir / file_name
+
+        if peer['has_file']:
+            if original_bytes:
+                peer_dir.mkdir(parents=True, exist_ok=True)
+                try:
+                    target.write_bytes(original_bytes)
+                except Exception as exc:
+                    print(f"[Reset] failed to write seed file for {peer['peer_id']}: {exc}")
+            restored.append(peer['peer_id'])
+        else:
+            if target.exists():
+                try:
+                    target.unlink()
+                    removed.append(peer['peer_id'])
+                except Exception as exc:
+                    print(f"[Reset] failed to remove file for {peer['peer_id']}: {exc}")
+
+    with distribution_state['lock']:
+        seed_ids = {peer['peer_id'] for peer in peers if peer['has_file']}
+        for peer in peers:
+            peer_id = peer['peer_id']
+            if peer_id in seed_ids:
+                distribution_state['peer_pieces'][peer_id] = set(range(total_pieces))
+            else:
+                distribution_state['peer_pieces'][peer_id] = set()
+        distribution_state['peer_completed'] = set()
+        distribution_state['written'] = set()
+
+    print("\n" + "="*60)
+    print("Project files reset to initial distribution.")
+    if restored:
+        print(f"  Seeds restored: {sorted(restored)}")
+    if removed:
+        print(f"  Leecher files removed: {sorted(removed)}")
+    print("="*60)
+
+def handle_incoming_connection(peer_id, client_socket, address):
+    """handle incoming peer socket"""
+    print(f"[Peer {peer_id}] Handling connection from {address}")
+    
+    try:
+        while not shutdown_flag:
+            # receive data with timeout
+            client_socket.settimeout(1.0)
+            try:
+                data = client_socket.recv(1024)
+                if not data:
+                    print(f"[Peer {peer_id}] Connection closed by {address}")
+                    break
+                
+                print(f"[Peer {peer_id}] Received from {address}: {data}")
+                
+                # send reply
+                reply = f"Peer {peer_id} received your message".encode()
+                client_socket.sendall(reply)
+            except socket.timeout:
+                continue  # check shutdown flag
+                
+    except Exception as e:
+        if not shutdown_flag:
+            print(f"[Peer {peer_id}] Error handling connection: {e}")
+    finally:
+        client_socket.close()
+
+def accept_connections(peer_id, server_socket, incoming_connections):
+    """accept peer sockets"""
+    print(f"[Peer {peer_id}] Ready to accept connections")
+    
+    server_socket.settimeout(1.0)
+    
+    while not shutdown_flag:
+        try:
+            client_socket, address = server_socket.accept()
+            print(f"[Peer {peer_id}] Accepted connection from {address}")
+            
+            # count incoming connection
+            with incoming_connections['lock']:
+                incoming_connections['count'] += 1
+            
+            # spawn handler thread
+            handler_thread = threading.Thread(
+                target=handle_incoming_connection,
+                args=(peer_id, client_socket, address),
+                daemon=True
+            )
+            handler_thread.start()
+            
+        except socket.timeout:
+            continue
+        except Exception as e:
+            if not shutdown_flag:
+                print(f"[Peer {peer_id}] Error accepting connection: {e}")
+
+
+def establish_connections(peer_id, connection_targets, outgoing_connections):
+    """dial planned peers with retries"""
+    targets = {
+        peer['peer_id']: peer
+        for peer in connection_targets
+        if peer['peer_id'] != peer_id
+    }
+    last_failure_log = {}
+
+    while targets and not shutdown_flag:
+        for target_id in list(targets.keys()):
+            if shutdown_flag:
+                break
+
+            if target_id in outgoing_connections:
+                targets.pop(target_id, None)
+                continue
+
+            target_peer = targets[target_id]
+            client = None
+
+            try:
+                print(f"[Peer {peer_id}] Connecting to peer {target_id} at "
+                      f"{target_peer['hostname']}:{target_peer['port']}")
+
+                client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                client.settimeout(5.0)
+                client.connect((target_peer['hostname'], target_peer['port']))
+
+                message = f"Hello from peer {peer_id}!".encode()
+                client.sendall(message)
+
+                reply = client.recv(1024)
+                print(f"[Peer {peer_id}] Reply from {target_id}: {reply.decode()}")
+
+                client.settimeout(None)
+                outgoing_connections[target_id] = client
+                targets.pop(target_id, None)
+
+            except Exception as e:
+                if client is not None:
+                    try:
+                        client.close()
+                    except Exception:
+                        pass
+
+                now = time.time()
+                last_logged = last_failure_log.get(target_id, 0)
+                if now - last_logged > 5:
+                    print(f"[Peer {peer_id}] Failed to connect to peer {target_id}: {e} "
+                          f"(retrying)")
+                    last_failure_log[target_id] = now
+
+        if targets and not shutdown_flag:
+            time.sleep(1)
+
+def peer_process(peer_info, all_peers, common_config, seed_assignments,
+                 leecher_to_seed, leecher_fairness,
+                 seed_piece_plan, piece_plan_summary):
+    """run peer workflow in thread"""
+    peer_id = peer_info['peer_id']
+    hostname = peer_info['hostname']
+    port = peer_info['port']
+    has_file = peer_info['has_file']
+    
+    print(f"\n[Peer {peer_id}] Starting on {hostname}:{port}, has_file={has_file}")
+    
+    # track incoming state
+    incoming_connections = {
+        'count': 0,
+        'lock': threading.Lock()
+    }
+    
+    # step 1 start server
+    try:
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind(('0.0.0.0', port))
+        server.listen(10)
+        
+        print(f"[Peer {peer_id}] Server listening on port {port}")
+    except Exception as e:
+        print(f"[Peer {peer_id}] Failed to start server: {e}")
+        return
+    
+    # spin up accept thread
+    accept_thread = threading.Thread(
+        target=accept_connections,
+        args=(peer_id, server, incoming_connections),
+        daemon=True
+    )
+    accept_thread.start()
+    
+    # brief server delay
+    time.sleep(1)
+    
+    assigned_peer_ids = []
+    assigned_piece_ids = []
+    propagation_message = "participating in swarm"
+    assigned_seed_id = None
+    
+    # step 2 dial mesh
+    outgoing_connections = {}
+
+    mesh_targets = [
+        peer
+        for peer in all_peers
+        if peer['peer_id'] != peer_id
+    ]
+    establish_connections(peer_id, mesh_targets, outgoing_connections)
+
+    if has_file:
+        assigned_leechers = seed_assignments.get(peer_id, [])
+        assigned_ids = [peer['peer_id'] for peer in assigned_leechers]
+        baseline_leechers = leecher_fairness.get('baseline_leechers_per_seed', 0)
+        leecher_count = len(assigned_ids)
+        extra_leecher = leecher_count > baseline_leechers
+
+        assigned_pieces = seed_piece_plan.get(peer_id, [])
+        baseline_pieces = piece_plan_summary.get('baseline_pieces_per_seed', 0)
+        extra_piece = len(assigned_pieces) > baseline_pieces
+
+        print(f"[Peer {peer_id}] Assigned leechers: {assigned_ids} "
+              f"(baseline {baseline_leechers}{' +1' if extra_leecher else ''})")
+        print(f"[Peer {peer_id}] Piece responsibility: {assigned_pieces} "
+              f"(baseline {baseline_pieces}{' +1' if extra_piece else ''})")
+        assigned_peer_ids = assigned_ids
+        assigned_piece_ids = assigned_pieces
+        propagation_message = (f"seeding {len(assigned_piece_ids)} pieces to "
+                               f"{len(assigned_peer_ids)} leechers")
+    else:
+        seed_id = leecher_to_seed.get(peer_id)
+        assigned_ids = [seed_id] if seed_id is not None else []
+        seed_pieces = seed_piece_plan.get(seed_id, []) if seed_id is not None else []
+
+        print(f"[Peer {peer_id}] Assigned seed: {assigned_ids}")
+        if seed_pieces:
+            print(f"[Peer {peer_id}] Will request initial pieces {seed_pieces} from seed {seed_id}")
+        else:
+            print(f"[Peer {peer_id}] Awaiting propagated pieces from peers")
+        assigned_peer_ids = assigned_ids
+        assigned_piece_ids = seed_pieces
+        assigned_seed_id = seed_id
+        if seed_id is not None and seed_pieces:
+            propagation_message = (f"downloading {len(seed_pieces)} pieces from seed {seed_id} "
+                                   "and propagating to neighbors")
+        elif seed_id is not None:
+            propagation_message = f"coordinating with seed {seed_id} for upcoming pieces"
+        else:
+            propagation_message = "waiting for seed assignment"
+    
+    # step 3 share pieces
+    total_expected_peers = len(all_peers) - 1  # exclude self
+    assigned_leechers = seed_assignments.get(peer_id, []) if has_file else []
+
+    print(f"[Peer {peer_id}] Setup complete. Running...")
+    print(f"[Peer {peer_id}] Outgoing: {list(outgoing_connections.keys())}")
+
+    seed_distribution_done = (not has_file) or not assigned_leechers
+    leecher_fetch_done = has_file or assigned_seed_id is None
+    allowed_upload_set = set(assigned_piece_ids) if has_file else None
+    allowed_targets_set = set(assigned_peer_ids) if has_file else None
+    last_status_time = time.time()
+
+    evaluate_completion(peer_id)
+
+    try:
+        while not shutdown_flag:
+            time.sleep(1)
+            if shutdown_flag:
+                break
+
+            if has_file and not seed_distribution_done:
+                if seed_deliver_initial_pieces(peer_id, assigned_leechers, seed_piece_plan):
+                    print(f"[Peer {peer_id}] Delivered designated pieces to leechers {assigned_peer_ids}")
+                seed_distribution_done = True
+
+            if not has_file and not leecher_fetch_done:
+                if leecher_request_assigned_pieces(peer_id, assigned_seed_id, seed_piece_plan):
+                    leecher_fetch_done = True
+                    if assigned_seed_id is not None:
+                        print(f"[Peer {peer_id}] Received assigned pieces from seed {assigned_seed_id}")
+                else:
+                    # retry soon
+                    pass
+
+            updated = propagate_peer_pieces(
+                peer_id,
+                allowed_upload=allowed_upload_set,
+                allowed_targets=allowed_targets_set
+            )
+            propagated_targets = sorted(set(updated) - {peer_id})
+            if propagated_targets:
+                print(f"[Peer {peer_id}] Propagated pieces to peers {propagated_targets}")
+
+            evaluate_completion(peer_id)
+
+            now = time.time()
+            if now - last_status_time >= 5 and not shutdown_flag:
+                with incoming_connections['lock']:
+                    incoming = incoming_connections['count']
+                outgoing = len(outgoing_connections)
+                total = incoming + outgoing
+
+                with distribution_state['lock']:
+                    current_piece_count = len(distribution_state['peer_pieces'].get(peer_id, set()))
+                    total_piece_count = distribution_state['total_pieces']
+
+                remaining = max(total_piece_count - current_piece_count, 0)
+
+                if has_file:
+                    propagation_message = (
+                        f"seeding {len(assigned_piece_ids)} designated pieces; "
+                        f"holding {current_piece_count}/{total_piece_count}"
+                    )
+                else:
+                    if assigned_seed_id is not None:
+                        propagation_message = (
+                            f"syncing with seed {assigned_seed_id}; missing {remaining} pieces"
+                        )
+                    else:
+                        propagation_message = f"swarm propagation; missing {remaining} pieces"
+
+                print(f"[Peer {peer_id}] Connections: {total}/{total_expected_peers} "
+                      f"(outgoing: {outgoing}, incoming: {incoming}) | {propagation_message}")
+                last_status_time = now
+    except Exception as e:
+        pass
+    finally:
+        print(f"[Peer {peer_id}] Shutting down...")
+        
+        # clean up sockets
+        for conn in outgoing_connections.values():
+            try:
+                conn.close()
+            except:
+                pass
+        try:
+            server.close()
+        except:
+            pass
+
+        
+if __name__ == "__main__":
+    # read configs
+    common_config = read_common_config()
+    all_peers = read_peer_info()
+    seed_assignments, leecher_to_seed, leecher_fairness = assign_leechers_to_seeds(all_peers)
+    seed_piece_plan, piece_plan_summary = plan_piece_distribution(all_peers, common_config)
+    pieces, file_name, original_bytes = load_file_pieces(all_peers, common_config)
+    initialize_distribution_state(
+        all_peers,
+        pieces,
+        file_name,
+        original_bytes,
+        seed_assignments,
+        leecher_to_seed,
+        seed_piece_plan
+    )
+    reset_only = any(arg == '--reset' for arg in sys.argv[1:])
+    if reset_only:
+        reset_project_files(all_peers, file_name)
+        sys.exit(0)
+    
+    print("="*60)
+    print("Common Config:")
+    pprint(common_config)
+    
+    print("\n" + "="*60)
+    print("Peer Info:")
+    for peer in all_peers:
+        has_file_str = "SEED" if peer['has_file'] else "LEECHER"
+        print(f"  Peer {peer['peer_id']}: {peer['hostname']}:{peer['port']} - {has_file_str}")
+    print("="*60)
+    
+    if leecher_fairness['seed_ids']:
+        print("\n" + "="*60)
+        print("Seeder Load Agreement:")
+        baseline = leecher_fairness['baseline_leechers_per_seed']
+        remainder = leecher_fairness['remainder']
+        print(f"  Baseline leechers per seed: {baseline}")
+        if remainder:
+            print(f"  First {remainder} seeds (by peer_id) receive one extra leecher")
+        for seed_id in sorted(leecher_fairness['seed_ids']):
+            assigned_ids = [peer['peer_id'] for peer in seed_assignments.get(seed_id, [])]
+            print(f"  Seed {seed_id}: leechers {assigned_ids}")
+        print("="*60)
+
+    if seed_piece_plan:
+        print("\n" + "="*60)
+        print("Piece Distribution Plan:")
+        print(f"  Total pieces: {piece_plan_summary['total_pieces']}")
+        baseline_pieces = piece_plan_summary['baseline_pieces_per_seed']
+        remainder_pieces = piece_plan_summary['remainder']
+        print(f"  Baseline pieces per seed: {baseline_pieces}")
+        if remainder_pieces:
+            print(f"  First {remainder_pieces} seeds (by peer_id) take one extra piece")
+        for seed_id in sorted(seed_piece_plan.keys()):
+            pieces = seed_piece_plan[seed_id]
+            print(f"  Seed {seed_id}: piece indices {pieces}")
+        print("="*60)
+    
+    # spawn peer threads
+    threads = []
+    for peer_info in all_peers:
+        thread = threading.Thread(
+            target=peer_process,
+            args=(
+                peer_info,
+                all_peers,
+                common_config,
+                seed_assignments,
+                leecher_to_seed,
+                leecher_fairness,
+                seed_piece_plan,
+                piece_plan_summary
+            ),
+            daemon=True
+        )
+        threads.append(thread)
+        thread.start()
+        
+        # small launch delay
+        time.sleep(0.5)
+    
+    print("\n" + "="*60)
+    print("All peers started!")
+    print("Press Ctrl+C to stop")
+    print("="*60)
+    
+    # keep main thread alive
+    try:
+        while not shutdown_flag:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\n\nShutting down...")
+        shutdown_flag = True
+    
+    # wait for cleanup
+    time.sleep(2)
+    print("All peers stopped.")
+    
+    if not reset_only:
+        reset_project_files(all_peers, file_name)
