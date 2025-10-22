@@ -5,6 +5,108 @@ import signal
 import sys
 from pprint import pprint
 from pathlib import Path
+import argparse
+
+# --- Protocol constants ---
+PSTR = b"P2PFILESHARINGPROJ"          # 18 bytes
+HS_RESERVED = b"\x00" * 10            # 10 bytes
+
+# message type ids
+MSG_CHOKE       = 0
+MSG_UNCHOKE     = 1
+MSG_INTERESTED  = 2
+MSG_NOTINTERESTED = 3
+MSG_HAVE        = 4
+MSG_BITFIELD    = 5
+MSG_REQUEST     = 6
+MSG_PIECE       = 7
+
+# --- Socket helpers ---
+def send_all(sock, data: bytes):
+    view = memoryview(data)
+    while view:
+        n = sock.send(view)
+        view = view[n:]
+
+def recv_exact(sock, n: int) -> bytes:
+    buf = bytearray(n)
+    view = memoryview(buf)
+    while view:
+        k = sock.recv_into(view)
+        if k == 0:
+            raise ConnectionError("socket closed")
+        view = view[k:]
+    return bytes(buf)
+
+# Handshake 32 bytes
+def send_handshake(sock, my_peer_id: int):
+    payload = PSTR + HS_RESERVED + my_peer_id.to_bytes(4, "big", signed=False)
+    send_all(sock, payload)
+
+def recv_handshake(sock) -> int:
+    data = recv_exact(sock, 32)
+    header = data[:18]
+    reserved = data[18:28]
+    pid = int.from_bytes(data[28:32], "big", signed=False)
+    if header != PSTR or reserved != HS_RESERVED:
+        raise ValueError("bad handshake")
+    return pid
+
+# length-prefixed frame
+def send_frame(sock, msg_type: int, payload: bytes = b""):
+    total_len = 1 + len(payload)
+    send_all(sock, total_len.to_bytes(4, "big") + bytes([msg_type]) + payload)
+
+def recv_frame(sock):
+    length = int.from_bytes(recv_exact(sock, 4), "big")
+    if length == 0:
+        return 0, b""
+    msg_type = recv_exact(sock, 1)[0]
+    payload = recv_exact(sock, length - 1) if length > 1 else b""
+    return msg_type, payload
+
+def build_bitfield_bytes(my_piece_set, total_pieces):
+    bits = ['1' if i in my_piece_set else '0' for i in range(total_pieces)]
+    while len(bits) % 8 != 0:
+        bits.append('0')
+    out = bytearray()
+    for i in range(0, len(bits), 8):
+        out.append(int(''.join(bits[i:i+8]), 2))
+    return bytes(out)
+
+def parse_bitfield_bytes(b: bytes, total_pieces: int):
+    have = set()
+    bitidx = 0
+    for byte in b:
+        for shift in range(7, -1, -1):
+            if bitidx >= total_pieces:
+                return have
+            if (byte >> shift) & 1:
+                have.add(bitidx)
+            bitidx += 1
+    return have
+
+def receiver_loop(peer_id, sock, remote_peer_id_or_addr):
+    sock.settimeout(1.0)
+    while not shutdown_flag:
+        try:
+            msg_type, payload = recv_frame(sock)
+        except socket.timeout:
+            continue
+        except Exception as e:
+            print(f"[Peer {peer_id}] receiver closed for {remote_peer_id_or_addr}: {e}")
+            break
+
+        if msg_type == MSG_BITFIELD:
+            with distribution_state['lock']:
+                total = distribution_state['total_pieces']
+                have = parse_bitfield_bytes(payload, total)
+                if isinstance(remote_peer_id_or_addr, int):
+                    nb = distribution_state['neighbor_bitfields'].setdefault(peer_id, {})
+                    nb[remote_peer_id_or_addr] = have
+            print(f"[Peer {peer_id}] <- bitfield ({len(payload)} bytes) from {remote_peer_id_or_addr} ({len(have)} pieces)")
+        else:
+            pass
 
 # testing flag for dev runs
 TESTING = True  # toggle flag
@@ -26,7 +128,8 @@ distribution_state = {
     'seed_piece_plan': {},
     'seed_ids': set(),
     'peer_roles': {},
-    'lock': threading.Lock()
+    'lock': threading.Lock(),
+    'neighbor_bitfields': {} 
 }
 
 def signal_handler(sig, frame):
@@ -249,6 +352,9 @@ def initialize_distribution_state(peers, pieces, file_name, original_bytes,
         distribution_state['peer_roles'] = {
             peer['peer_id']: peer['has_file'] for peer in peers
         }
+        distribution_state['neighbor_bitfields'] = {}
+        for peer in peers:
+            distribution_state['neighbor_bitfields'][peer['peer_id']] = {}
 
         base_dir = Path('project_config_file_small')
         for peer in peers:
@@ -472,28 +578,30 @@ def handle_incoming_connection(peer_id, client_socket, address):
     print(f"[Peer {peer_id}] Handling connection from {address}")
     
     try:
-        while not shutdown_flag:
-            # receive data with timeout
-            client_socket.settimeout(1.0)
-            try:
-                data = client_socket.recv(1024)
-                if not data:
-                    print(f"[Peer {peer_id}] Connection closed by {address}")
-                    break
-                
-                print(f"[Peer {peer_id}] Received from {address}: {data}")
-                
-                # send reply
-                reply = f"Peer {peer_id} received your message".encode()
-                client_socket.sendall(reply)
-            except socket.timeout:
-                continue  # check shutdown flag
+       # --- Handshake ---
+        their_id = recv_handshake(client_socket)
+        send_handshake(client_socket, peer_id)
+        print(f"[Peer {peer_id}] Handshake OK with {their_id} from {address}")
+
+        # --- Send our bitfield right after handshake ---
+        with distribution_state['lock']:
+            my_bits = build_bitfield_bytes(
+                distribution_state['peer_pieces'][peer_id],
+                distribution_state['total_pieces']
+            )
+        send_frame(client_socket, MSG_BITFIELD, my_bits)
+
+        # --- Enter framed-message receive loop ---
+        receiver_loop(peer_id, client_socket, their_id)
                 
     except Exception as e:
         if not shutdown_flag:
             print(f"[Peer {peer_id}] Error handling connection: {e}")
     finally:
-        client_socket.close()
+        try:
+            client_socket.close()
+        except:
+            pass
 
 def accept_connections(peer_id, server_socket, incoming_connections):
     """accept peer sockets"""
@@ -554,15 +662,29 @@ def establish_connections(peer_id, connection_targets, outgoing_connections):
                 client.settimeout(5.0)
                 client.connect((target_peer['hostname'], target_peer['port']))
 
-                message = f"Hello from peer {peer_id}!".encode()
-                client.sendall(message)
+                # --- handshake both ways ---
+                send_handshake(client, peer_id)
+                their_id = recv_handshake(client)
+                print(f"[Peer {peer_id}] Handshake OK with {their_id}")
 
-                reply = client.recv(1024)
-                print(f"[Peer {peer_id}] Reply from {target_id}: {reply.decode()}")
+                # --- send our bitfield immediately ---
+                with distribution_state['lock']:
+                    my_bits = build_bitfield_bytes(
+                        distribution_state['peer_pieces'][peer_id],
+                        distribution_state['total_pieces']
+                    )
+                send_frame(client, MSG_BITFIELD, my_bits)
 
                 client.settimeout(None)
                 outgoing_connections[target_id] = client
                 targets.pop(target_id, None)
+
+                # --- start a receiver for outgoing connection ---
+                threading.Thread(
+                    target=receiver_loop,
+                    args=(peer_id, client, target_id),
+                    daemon=True
+                ).start()
 
             except Exception as e:
                 if client is not None:
@@ -632,10 +754,16 @@ def peer_process(peer_info, all_peers, common_config, seed_assignments,
     mesh_targets = [
         peer
         for peer in all_peers
-        if peer['peer_id'] != peer_id
+        if peer['peer_id'] != peer_id and peer['peer_id'] < peer_id
     ]
-    establish_connections(peer_id, mesh_targets, outgoing_connections)
-
+    connector_thread = threading.Thread(
+        target=establish_connections,
+        args=(peer_id, mesh_targets, outgoing_connections),
+        daemon=True
+    )
+    connector_thread.start()
+    
+    
     if has_file:
         assigned_leechers = seed_assignments.get(peer_id, [])
         assigned_ids = [peer['peer_id'] for peer in assigned_leechers]
@@ -769,6 +897,13 @@ def peer_process(peer_info, all_peers, common_config, seed_assignments,
 
         
 if __name__ == "__main__":
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("peer_id", nargs="?", type=int, help="run only this peer id")
+    parser.add_argument("--no-reset", action="store_true", help="keep files after run")
+    parser.add_argument("--reset", action="store_true", help="reset project files then exit")
+    args = parser.parse_args()
+    
     # read configs
     common_config = read_common_config()
     all_peers = read_peer_info()
@@ -784,8 +919,7 @@ if __name__ == "__main__":
         leecher_to_seed,
         seed_piece_plan
     )
-    reset_only = any(arg == '--reset' for arg in sys.argv[1:])
-    if reset_only:
+    if args.reset:
         reset_project_files(all_peers, file_name)
         sys.exit(0)
     
@@ -795,7 +929,8 @@ if __name__ == "__main__":
     
     print("\n" + "="*60)
     print("Peer Info:")
-    for peer in all_peers:
+    peers_to_run = all_peers if args.peer_id is None else [p for p in all_peers if p["peer_id"] == args.peer_id]
+    for peer in peers_to_run:
         has_file_str = "SEED" if peer['has_file'] else "LEECHER"
         print(f"  Peer {peer['peer_id']}: {peer['hostname']}:{peer['port']} - {has_file_str}")
     print("="*60)
@@ -829,7 +964,7 @@ if __name__ == "__main__":
     
     # spawn peer threads
     threads = []
-    for peer_info in all_peers:
+    for peer_info in peers_to_run:
         thread = threading.Thread(
             target=peer_process,
             args=(
@@ -867,5 +1002,5 @@ if __name__ == "__main__":
     time.sleep(2)
     print("All peers stopped.")
     
-    if not reset_only:
+    if not args.no_reset:
         reset_project_files(all_peers, file_name)
