@@ -12,23 +12,23 @@ PSTR = b"P2PFILESHARINGPROJ"          # 18 bytes
 HS_RESERVED = b"\x00" * 10            # 10 bytes
 
 # message type ids
-MSG_CHOKE       = 0
-MSG_UNCHOKE     = 1
-MSG_INTERESTED  = 2
+MSG_CHOKE = 0
+MSG_UNCHOKE = 1
+MSG_INTERESTED = 2
 MSG_NOTINTERESTED = 3
-MSG_HAVE        = 4
-MSG_BITFIELD    = 5
-MSG_REQUEST     = 6
-MSG_PIECE       = 7
+MSG_HAVE = 4
+MSG_BITFIELD = 5
+MSG_REQUEST = 6
+MSG_PIECE = 7
 
 # --- Socket helpers ---
-def send_all(sock, data: bytes):
+def send_all(sock, data):
     view = memoryview(data)
     while view:
         n = sock.send(view)
         view = view[n:]
 
-def recv_exact(sock, n: int) -> bytes:
+def recv_exact(sock, n) -> bytes:
     buf = bytearray(n)
     view = memoryview(buf)
     while view:
@@ -39,7 +39,7 @@ def recv_exact(sock, n: int) -> bytes:
     return bytes(buf)
 
 # Handshake 32 bytes
-def send_handshake(sock, my_peer_id: int):
+def send_handshake(sock, my_peer_id):
     payload = PSTR + HS_RESERVED + my_peer_id.to_bytes(4, "big", signed=False)
     send_all(sock, payload)
 
@@ -53,7 +53,7 @@ def recv_handshake(sock) -> int:
     return pid
 
 # length-prefixed frame
-def send_frame(sock, msg_type: int, payload: bytes = b""):
+def send_frame(sock, msg_type, payload = b""):
     total_len = 1 + len(payload)
     send_all(sock, total_len.to_bytes(4, "big") + bytes([msg_type]) + payload)
 
@@ -74,7 +74,7 @@ def build_bitfield_bytes(my_piece_set, total_pieces):
         out.append(int(''.join(bits[i:i+8]), 2))
     return bytes(out)
 
-def parse_bitfield_bytes(b: bytes, total_pieces: int):
+def parse_bitfield_bytes(b, total_pieces):
     have = set()
     bitidx = 0
     for byte in b:
@@ -85,6 +85,36 @@ def parse_bitfield_bytes(b: bytes, total_pieces: int):
                 have.add(bitidx)
             bitidx += 1
     return have
+
+def compute_and_send_interest(my_id, sock, neighbor_id):
+    with distribution_state['lock']:
+        total = distribution_state['total_pieces']
+        my_have = distribution_state['peer_pieces'].get(my_id, set())
+        neighbor_have = distribution_state['neighbor_bitfields'].get(my_id, {}).get(neighbor_id, set())
+
+    need = neighbor_have - my_have
+    if need:
+        send_frame(sock, MSG_INTERESTED, b"")
+        with distribution_state['lock']:
+            distribution_state['am_interested_in'][my_id].add(neighbor_id)
+        print(f"[Peer {my_id}] -> INTERESTED to {neighbor_id} (need {len(need)})")
+    else:
+        send_frame(sock, MSG_NOTINTERESTED, b"")
+        with distribution_state['lock']:
+            distribution_state['am_interested_in'][my_id].discard(neighbor_id)
+        print(f"[Peer {my_id}] -> NOT_INTERESTED to {neighbor_id} (no need)")
+
+def set_choke_state(my_id, neighbor_id, sock, choked: bool):
+    if choked:
+        send_frame(sock, MSG_CHOKE, b"")
+        with distribution_state['lock']:
+            distribution_state['unchoked_out'][my_id].discard(neighbor_id)
+        print(f"[Peer {my_id}] -> CHOKE to {neighbor_id}")
+    else:
+        send_frame(sock, MSG_UNCHOKE, b"")
+        with distribution_state['lock']:
+            distribution_state['unchoked_out'][my_id].add(neighbor_id)
+        print(f"[Peer {my_id}] -> UNCHOKE to {neighbor_id}")
 
 def receiver_loop(peer_id, sock, remote_peer_id_or_addr):
     sock.settimeout(1.0)
@@ -102,9 +132,34 @@ def receiver_loop(peer_id, sock, remote_peer_id_or_addr):
                 total = distribution_state['total_pieces']
                 have = parse_bitfield_bytes(payload, total)
                 if isinstance(remote_peer_id_or_addr, int):
-                    nb = distribution_state['neighbor_bitfields'].setdefault(peer_id, {})
-                    nb[remote_peer_id_or_addr] = have
+                    neighbor = distribution_state['neighbor_bitfields'].setdefault(peer_id, {})
+                    neighbor[remote_peer_id_or_addr] = have
             print(f"[Peer {peer_id}] <- bitfield ({len(payload)} bytes) from {remote_peer_id_or_addr} ({len(have)} pieces)")
+            if isinstance(remote_peer_id_or_addr, int):
+                compute_and_send_interest(peer_id, sock, remote_peer_id_or_addr)
+        elif msg_type == MSG_INTERESTED:
+            if isinstance(remote_peer_id_or_addr, int):
+                with distribution_state['lock']:
+                    distribution_state['peer_interest_in_me'][peer_id].add(remote_peer_id_or_addr)
+                print(f"[Peer {peer_id}] <- INTERESTED from {remote_peer_id_or_addr}")    
+        elif msg_type == MSG_NOTINTERESTED:
+            if isinstance(remote_peer_id_or_addr, int):
+                with distribution_state['lock']:
+                    distribution_state['peer_interest_in_me'][peer_id].discard(remote_peer_id_or_addr)
+                print(f"[Peer {peer_id}] <- NOT_INTERESTED from {remote_peer_id_or_addr}")
+        elif msg_type == MSG_CHOKE:
+            if isinstance(remote_peer_id_or_addr, int):
+                with distribution_state['lock']:
+                    distribution_state['choked_by'][peer_id].add(remote_peer_id_or_addr)
+            print(f"[Peer {peer_id}] <- CHOKE from {remote_peer_id_or_addr}")
+
+        elif msg_type == MSG_UNCHOKE:
+            if isinstance(remote_peer_id_or_addr, int):
+                with distribution_state['lock']:
+                    distribution_state['choked_by'][peer_id].discard(remote_peer_id_or_addr)
+            print(f"[Peer {peer_id}] <- UNCHOKE from {remote_peer_id_or_addr}")
+
+        
         else:
             pass
 
@@ -129,7 +184,13 @@ distribution_state = {
     'seed_ids': set(),
     'peer_roles': {},
     'lock': threading.Lock(),
-    'neighbor_bitfields': {} 
+    'neighbor_bitfields': {},
+    'am_interested_in': {},
+    'peer_interest_in_me': {},
+    'unchoked_out': {},
+    'choked_by': {},
+    'download_bytes': {}
+    
 }
 
 def signal_handler(sig, frame):
@@ -323,8 +384,7 @@ def load_file_pieces(peers, common_config):
     return pieces, file_name, file_bytes
 
 
-def initialize_distribution_state(peers, pieces, file_name, original_bytes,
-                                  seed_assignments, leecher_to_seed, seed_piece_plan):
+def initialize_distribution_state(peers, pieces, file_name, original_bytes, seed_assignments, leecher_to_seed, seed_piece_plan):
     """init distribution state"""
     total_pieces = len(pieces)
 
@@ -352,10 +412,27 @@ def initialize_distribution_state(peers, pieces, file_name, original_bytes,
         distribution_state['peer_roles'] = {
             peer['peer_id']: peer['has_file'] for peer in peers
         }
+        distribution_state['am_interested_in'] = {
+            peer['peer_id']: set() for peer in peers
+        }
+        distribution_state['peer_interest_in_me'] = {
+            peer['peer_id']: set() for peer in peers
+        }
         distribution_state['neighbor_bitfields'] = {}
         for peer in peers:
             distribution_state['neighbor_bitfields'][peer['peer_id']] = {}
-
+        distribution_state['unchoked_out'] = {
+            peer['peer_id']: set() for peer in peers
+        }
+        distribution_state['choked_by'] = {
+            peer['peer_id']: set() for peer in peers
+        }
+        distribution_state['download_bytes'] = {
+            peer['peer_id']: {}   for peer in peers
+        }
+        for me in distribution_state['choked_by'].keys():
+            others = {p['peer_id'] for p in peers if p['peer_id'] != me}
+            distribution_state['choked_by'][me] = others
         base_dir = Path('project_config_file_small')
         for peer in peers:
             peer_id = peer['peer_id']
@@ -573,7 +650,7 @@ def reset_project_files(peers, file_name):
         print(f"  Leecher files removed: {sorted(removed)}")
     print("="*60)
 
-def handle_incoming_connection(peer_id, client_socket, address):
+def handle_incoming_connection(peer_id, client_socket, address, incoming_connections):
     """handle incoming peer socket"""
     print(f"[Peer {peer_id}] Handling connection from {address}")
     
@@ -582,6 +659,8 @@ def handle_incoming_connection(peer_id, client_socket, address):
         their_id = recv_handshake(client_socket)
         send_handshake(client_socket, peer_id)
         print(f"[Peer {peer_id}] Handshake OK with {their_id} from {address}")
+        with incoming_connections['lock']:
+            incoming_connections['sockets'][their_id] = client_socket
 
         # --- Send our bitfield right after handshake ---
         with distribution_state['lock']:
@@ -621,7 +700,7 @@ def accept_connections(peer_id, server_socket, incoming_connections):
             # spawn handler thread
             handler_thread = threading.Thread(
                 target=handle_incoming_connection,
-                args=(peer_id, client_socket, address),
+                args=(peer_id, client_socket, address, incoming_connections),
                 daemon=True
             )
             handler_thread.start()
@@ -703,6 +782,45 @@ def establish_connections(peer_id, connection_targets, outgoing_connections):
         if targets and not shutdown_flag:
             time.sleep(1)
 
+def choke_scheduler_runner(peer_id, outgoing_connections, incoming_connections, k, p, m):
+    last_opt = 0
+    optimistic_target = None
+    while not shutdown_flag:
+        time.sleep(1)
+        with distribution_state['lock']:
+            interested = set(distribution_state['peer_interest_in_me'][peer_id])
+
+        preferred = set(sorted(interested))
+        if len(preferred) > k:
+            preferred = set(list(preferred)[:k])
+
+        now = time.time()
+        if now - last_opt >= m:
+            candidates = list(interested - preferred - ({optimistic_target} if optimistic_target else set()))
+            optimistic_target = candidates[0] if candidates else None
+            last_opt = now
+            if optimistic_target:
+                print(f"[Peer {peer_id}] optimistically unchoking {optimistic_target}")
+
+        desired_open = set(preferred)
+        if optimistic_target:
+            desired_open.add(optimistic_target)
+
+        with incoming_connections['lock']:
+            inbound = dict(incoming_connections.get('sockets', {}))
+        all_socks = dict(outgoing_connections)
+        all_socks.update(inbound)
+
+        for neighbor_id, sock in list(all_socks.items()):
+            with distribution_state['lock']:
+                is_open = neighbor_id in distribution_state['unchoked_out'][peer_id]
+            should_open = neighbor_id in desired_open
+            if should_open and not is_open:
+                set_choke_state(peer_id, neighbor_id, sock, choked=False)
+            if not should_open and is_open:
+                set_choke_state(peer_id, neighbor_id, sock, choked=True)
+
+
 def peer_process(peer_info, all_peers, common_config, seed_assignments,
                  leecher_to_seed, leecher_fairness,
                  seed_piece_plan, piece_plan_summary):
@@ -717,7 +835,8 @@ def peer_process(peer_info, all_peers, common_config, seed_assignments,
     # track incoming state
     incoming_connections = {
         'count': 0,
-        'lock': threading.Lock()
+        'lock': threading.Lock(),
+        'sockets': {}
     }
     
     # step 1 start server
@@ -763,7 +882,12 @@ def peer_process(peer_info, all_peers, common_config, seed_assignments,
     )
     connector_thread.start()
     
-    
+    k = common_config.get('NumberOfPreferredNeighbors', 2)
+    p = common_config.get('UnchokingInterval', 5)
+    m = common_config.get('OptimisticUnchokingInterval', 10)
+
+    threading.Thread(target=choke_scheduler_runner, args=(peer_id, outgoing_connections, incoming_connections, k, p, m), daemon=True).start()
+
     if has_file:
         assigned_leechers = seed_assignments.get(peer_id, [])
         assigned_ids = [peer['peer_id'] for peer in assigned_leechers]
