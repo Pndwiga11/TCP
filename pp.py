@@ -21,8 +21,6 @@ MSG_BITFIELD = 5
 MSG_REQUEST = 6
 MSG_PIECE = 7
 
-DEMO_PROPAGATION = False
-
 # --- Socket helpers ---
 def send_all(sock, data):
     view = memoryview(data)
@@ -510,108 +508,6 @@ def initialize_distribution_state(peers, pieces, file_name, original_bytes, seed
             p['peer_id']: {} for p in peers
         }
 
-
-def seed_deliver_initial_pieces(seed_id, assigned_leechers, seed_piece_plan):
-    """send seed pieces to leechers"""
-    delivered = False
-    target_indices = set(seed_piece_plan.get(seed_id, []))
-    if not target_indices:
-        return False
-
-    with distribution_state['lock']:
-        for leecher in assigned_leechers:
-            leecher_id = leecher['peer_id']
-            leecher_pieces = distribution_state['peer_pieces'].setdefault(leecher_id, set())
-            before = len(leecher_pieces)
-            leecher_pieces.update(target_indices)
-            if len(leecher_pieces) > before:
-                delivered = True
-
-    return delivered
-
-
-def leecher_request_assigned_pieces(peer_id, seed_id, seed_piece_plan):
-    """ensure leecher gets seed pieces"""
-    with distribution_state['lock']:
-        total_pieces = distribution_state['total_pieces']
-        if total_pieces == 0:
-            return True
-
-    if seed_id is None:
-        return True
-
-    target_indices = set(seed_piece_plan.get(seed_id, []))
-    if not target_indices:
-        return True
-
-    with distribution_state['lock']:
-        my_pieces = distribution_state['peer_pieces'].get(peer_id)
-        seed_pieces = distribution_state['peer_pieces'].get(seed_id)
-
-        if my_pieces is None or seed_pieces is None:
-            return False
-
-        missing = target_indices - my_pieces
-        if not missing:
-            return True
-
-        if not seed_pieces.issuperset(missing):
-            return False
-
-        my_pieces.update(target_indices)
-        return True
-
-
-def propagate_peer_pieces(peer_id, allowed_upload=None, allowed_targets=None):
-    """sync piece sets among peers"""
-    updated_peers = set()
-    with distribution_state['lock']:
-        my_pieces = distribution_state['peer_pieces'].get(peer_id)
-        if my_pieces is None:
-            return []
-
-        if allowed_upload is None:
-            uploadable = set(my_pieces)
-        else:
-            uploadable = set(my_pieces) & set(allowed_upload)
-
-        seed_ids = distribution_state['seed_ids']
-        seed_assignments = distribution_state['seed_assignments']
-        seed_piece_plan = distribution_state['seed_piece_plan']
-
-        for other_id, pieces in distribution_state['peer_pieces'].items():
-            if other_id == peer_id:
-                continue
-
-            missing_for_me = set(pieces - my_pieces)
-
-            if missing_for_me and other_id in seed_ids and peer_id not in seed_ids:
-                allowed_leechers = seed_assignments.get(other_id, set())
-                if peer_id not in allowed_leechers:
-                    missing_for_me.clear()
-                else:
-                    allowed_seed_pieces = seed_piece_plan.get(other_id, set())
-                    if allowed_seed_pieces:
-                        missing_for_me &= allowed_seed_pieces
-
-            if allowed_targets is not None and other_id not in allowed_targets:
-                available_for_other = set()
-            else:
-                available_for_other = uploadable
-
-            missing_for_other = available_for_other - pieces
-
-            if missing_for_me:
-                my_pieces.update(missing_for_me)
-                updated_peers.add(peer_id)
-
-            if missing_for_other:
-                pieces.update(missing_for_other)
-                updated_peers.add(other_id)
-
-    return list(updated_peers)
-
-
 def write_completed_file(peer_id):
     """write assembled file once"""
     with distribution_state['lock']:
@@ -1062,10 +958,6 @@ def peer_process(peer_info, all_peers, common_config, seed_assignments,
     print(f"[Peer {peer_id}] Setup complete. Running...")
     print(f"[Peer {peer_id}] Outgoing: {list(outgoing_connections.keys())}")
 
-    seed_distribution_done = (not has_file) or not assigned_leechers
-    leecher_fetch_done = has_file or assigned_seed_id is None
-    allowed_upload_set = set(assigned_piece_ids) if has_file else None
-    allowed_targets_set = set(assigned_peer_ids) if has_file else None
     last_status_time = time.time()
 
     evaluate_completion(peer_id)
@@ -1075,27 +967,6 @@ def peer_process(peer_info, all_peers, common_config, seed_assignments,
             time.sleep(1)
             if shutdown_flag:
                 break
-
-            if has_file and not seed_distribution_done:
-                if DEMO_PROPAGATION:
-                    if seed_deliver_initial_pieces(peer_id, assigned_leechers, seed_piece_plan):
-                        print(f"[Peer {peer_id}] Delivered designated pieces to leechers {assigned_peer_ids}")
-                seed_distribution_done = True
-
-            if not has_file and not leecher_fetch_done:
-                if DEMO_PROPAGATION:
-                    if leecher_request_assigned_pieces(peer_id, assigned_seed_id, seed_piece_plan):
-                        leecher_fetch_done = True
-                        if assigned_seed_id is not None:
-                            print(f"[Peer {peer_id}] Received assigned pieces from seed {assigned_seed_id}")
-                    else:
-                        # retry soon
-                        pass
-            if DEMO_PROPAGATION:
-                updated = propagate_peer_pieces(peer_id, allowed_upload=allowed_upload_set, allowed_targets=allowed_targets_set)
-                propagated_targets = sorted(set(updated) - {peer_id})
-                if propagated_targets:
-                    print(f"[Peer {peer_id}] Propagated pieces to peers {propagated_targets}")
 
             evaluate_completion(peer_id)
 
