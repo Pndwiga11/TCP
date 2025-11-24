@@ -21,6 +21,8 @@ MSG_BITFIELD = 5
 MSG_REQUEST = 6
 MSG_PIECE = 7
 
+DEMO_PROPAGATION = False
+
 # --- Socket helpers ---
 def send_all(sock, data):
     view = memoryview(data)
@@ -116,7 +118,7 @@ def set_choke_state(my_id, neighbor_id, sock, choked: bool):
             distribution_state['unchoked_out'][my_id].add(neighbor_id)
         print(f"[Peer {my_id}] -> UNCHOKE to {neighbor_id}")
 
-def receiver_loop(peer_id, sock, remote_peer_id_or_addr):
+def receiver_loop(peer_id, sock, remote_peer_id_or_addr, outgoing_connections, incoming_connections):
     sock.settimeout(1.0)
     while not shutdown_flag:
         try:
@@ -137,6 +139,8 @@ def receiver_loop(peer_id, sock, remote_peer_id_or_addr):
             print(f"[Peer {peer_id}] <- bitfield ({len(payload)} bytes) from {remote_peer_id_or_addr} ({len(have)} pieces)")
             if isinstance(remote_peer_id_or_addr, int):
                 compute_and_send_interest(peer_id, sock, remote_peer_id_or_addr)
+                if isinstance(remote_peer_id_or_addr, int):
+                    maybe_request_next(peer_id, remote_peer_id_or_addr, sock)
         elif msg_type == MSG_INTERESTED:
             if isinstance(remote_peer_id_or_addr, int):
                 with distribution_state['lock']:
@@ -158,6 +162,59 @@ def receiver_loop(peer_id, sock, remote_peer_id_or_addr):
                 with distribution_state['lock']:
                     distribution_state['choked_by'][peer_id].discard(remote_peer_id_or_addr)
             print(f"[Peer {peer_id}] <- UNCHOKE from {remote_peer_id_or_addr}")
+            maybe_request_next(peer_id, remote_peer_id_or_addr, sock)
+        elif msg_type == MSG_HAVE:
+            if len(payload) != 4:
+                return
+            piece_index = int.from_bytes(payload, 'big', signed=False)
+            if isinstance(remote_peer_id_or_addr, int):
+                with distribution_state['lock']:
+                    nb = distribution_state['neighbor_bitfields'].setdefault(peer_id, {})
+                    have_set = nb.setdefault(remote_peer_id_or_addr, set())
+                    pre = len(have_set)
+                    have_set.add(piece_index)
+                print(f"[Peer {peer_id}] <- HAVE {piece_index} from {remote_peer_id_or_addr}")
+                compute_and_send_interest(peer_id, sock, remote_peer_id_or_addr)
+                maybe_request_next(peer_id, remote_peer_id_or_addr, sock)
+        
+        elif msg_type == MSG_REQUEST:
+            if len(payload) != 4:
+                return
+            piece_index = int.from_bytes(payload, 'big', signed=False)
+            src = remote_peer_id_or_addr if isinstance(remote_peer_id_or_addr, int) else None
+            allowed = False
+            with distribution_state['lock']:
+                if src is not None:
+                    i_unchoke = src in distribution_state['unchoked_out'].get(peer_id, set())
+                    i_have = piece_index in distribution_state['peer_pieces'].get(peer_id, set())
+                    allowed = i_unchoke and i_have
+                    data = distribution_state['pieces'][piece_index] if i_have else b''
+            if allowed:
+                payload_piece = piece_index.to_bytes(4, 'big') + data
+                send_frame(sock, MSG_PIECE, payload_piece)
+                print(f"[Peer {peer_id}] -> PIECE {piece_index} to {src} ({len(data)} bytes)")
+            else:
+                pass
+
+        elif msg_type == MSG_PIECE:
+            if len(payload) < 4:
+                return
+            piece_index = int.from_bytes(payload[:4], 'big', signed=False)
+            data = payload[4:]
+            with distribution_state['lock']:
+                if piece_index not in distribution_state['peer_pieces'].get(peer_id, set()):
+                    distribution_state['peer_pieces'][peer_id].add(piece_index)
+                nb = remote_peer_id_or_addr if isinstance(remote_peer_id_or_addr, int) else None
+                if nb is not None:
+                    distribution_state['inflight'][peer_id].pop(nb, None)
+            print(f"[Peer {peer_id}] <- PIECE {piece_index} ({len(data)} bytes) from {remote_peer_id_or_addr}")
+
+            broadcast_have(peer_id, piece_index, outgoing_connections, incoming_connections)
+
+            if isinstance(remote_peer_id_or_addr, int):
+                maybe_request_next(peer_id, remote_peer_id_or_addr, sock)
+
+            evaluate_completion(peer_id)
 
         
         else:
@@ -189,7 +246,9 @@ distribution_state = {
     'peer_interest_in_me': {},
     'unchoked_out': {},
     'choked_by': {},
-    'download_bytes': {}
+    'download_bytes': {},
+    'neighbor_bitfields': {},
+    'inflight': {}   
     
 }
 
@@ -444,6 +503,12 @@ def initialize_distribution_state(peers, pieces, file_name, original_bytes, seed
                 distribution_state['peer_pieces'][peer_id] = set(range(total_pieces))
             else:
                 distribution_state['peer_pieces'][peer_id] = set()
+        distribution_state['neighbor_bitfields'] = {
+            p['peer_id']: {} for p in peers
+        }
+        distribution_state['inflight'] = {
+            p['peer_id']: {} for p in peers
+        }
 
 
 def seed_deliver_initial_pieces(seed_id, assigned_leechers, seed_piece_plan):
@@ -650,7 +715,7 @@ def reset_project_files(peers, file_name):
         print(f"  Leecher files removed: {sorted(removed)}")
     print("="*60)
 
-def handle_incoming_connection(peer_id, client_socket, address, incoming_connections):
+def handle_incoming_connection(peer_id, client_socket, address, outgoing_connections, incoming_connections):
     """handle incoming peer socket"""
     print(f"[Peer {peer_id}] Handling connection from {address}")
     
@@ -671,7 +736,7 @@ def handle_incoming_connection(peer_id, client_socket, address, incoming_connect
         send_frame(client_socket, MSG_BITFIELD, my_bits)
 
         # --- Enter framed-message receive loop ---
-        receiver_loop(peer_id, client_socket, their_id)
+        receiver_loop(peer_id, client_socket, their_id, outgoing_connections, incoming_connections)
                 
     except Exception as e:
         if not shutdown_flag:
@@ -682,7 +747,7 @@ def handle_incoming_connection(peer_id, client_socket, address, incoming_connect
         except:
             pass
 
-def accept_connections(peer_id, server_socket, incoming_connections):
+def accept_connections(peer_id, server_socket, outgoing_connections, incoming_connections):
     """accept peer sockets"""
     print(f"[Peer {peer_id}] Ready to accept connections")
     
@@ -700,7 +765,7 @@ def accept_connections(peer_id, server_socket, incoming_connections):
             # spawn handler thread
             handler_thread = threading.Thread(
                 target=handle_incoming_connection,
-                args=(peer_id, client_socket, address, incoming_connections),
+                args=(peer_id, client_socket, address, outgoing_connections, incoming_connections),
                 daemon=True
             )
             handler_thread.start()
@@ -712,7 +777,7 @@ def accept_connections(peer_id, server_socket, incoming_connections):
                 print(f"[Peer {peer_id}] Error accepting connection: {e}")
 
 
-def establish_connections(peer_id, connection_targets, outgoing_connections):
+def establish_connections(peer_id, connection_targets, outgoing_connections, incoming_connections):
     """dial planned peers with retries"""
     targets = {
         peer['peer_id']: peer
@@ -761,7 +826,7 @@ def establish_connections(peer_id, connection_targets, outgoing_connections):
                 # --- start a receiver for outgoing connection ---
                 threading.Thread(
                     target=receiver_loop,
-                    args=(peer_id, client, target_id),
+                    args=(peer_id, client, target_id, outgoing_connections, incoming_connections),
                     daemon=True
                 ).start()
 
@@ -817,8 +882,60 @@ def choke_scheduler_runner(peer_id, outgoing_connections, incoming_connections, 
             should_open = neighbor_id in desired_open
             if should_open and not is_open:
                 set_choke_state(peer_id, neighbor_id, sock, choked=False)
+                maybe_request_next(peer_id, neighbor_id, sock)
             if not should_open and is_open:
                 set_choke_state(peer_id, neighbor_id, sock, choked=True)
+
+def pick_next_piece_to_request(my_id, neighbor_id):
+    with distribution_state['lock']:
+        my_have  = distribution_state['peer_pieces'].get(my_id, set())
+        inflight = set(distribution_state['inflight'].get(my_id, {}).values())
+        nb_map   = distribution_state['neighbor_bitfields'].get(my_id, {})
+
+        avail_counts = {}
+        for nb, have in nb_map.items():
+            for idx in have:
+                if idx not in my_have and idx not in inflight:
+                    avail_counts[idx] = avail_counts.get(idx, 0) + 1
+
+        candidates = [i for i in nb_map.get(neighbor_id, set())
+                      if i not in my_have and i not in inflight]
+        if not candidates:
+            return None
+
+        candidates.sort(key=lambda i: (avail_counts.get(i, 0), i))
+        return candidates[0]
+
+def send_request(my_id, neighbor_id, sock, piece_index):
+    payload = piece_index.to_bytes(4, 'big', signed=False)
+    send_frame(sock, MSG_REQUEST, payload)
+    with distribution_state['lock']:
+        distribution_state['inflight'][my_id][neighbor_id] = piece_index
+    print(f"[Peer {my_id}] -> REQUEST piece {piece_index} to {neighbor_id}")
+
+def maybe_request_next(my_id, neighbor_id, sock):
+    with distribution_state['lock']:
+        interested = neighbor_id in distribution_state['am_interested_in'].get(my_id, set())
+        unchoked_by_neighbor = neighbor_id not in distribution_state['choked_by'].get(my_id, set())
+        has_inflight = neighbor_id in distribution_state['inflight'].get(my_id, {})
+    if not (interested and unchoked_by_neighbor) or has_inflight:
+        return
+    nxt = pick_next_piece_to_request(my_id, neighbor_id)
+    if nxt is not None:
+        send_request(my_id, neighbor_id, sock, nxt)
+
+def broadcast_have(my_id, piece_index, outgoing_connections, incoming_connections):
+    payload = piece_index.to_bytes(4, 'big', signed=False)
+    with incoming_connections['lock']:
+        inbound = dict(incoming_connections.get('sockets', {}))
+    all_socks = dict(outgoing_connections); all_socks.update(inbound)
+
+    for nb_id, sock in list(all_socks.items()):
+        try:
+            send_frame(sock, MSG_HAVE, payload)
+        except Exception:
+            pass
+    print(f"[Peer {my_id}] -> HAVE {piece_index} (broadcast)")
 
 
 def peer_process(peer_info, all_peers, common_config, seed_assignments,
@@ -832,12 +949,22 @@ def peer_process(peer_info, all_peers, common_config, seed_assignments,
     
     print(f"\n[Peer {peer_id}] Starting on {hostname}:{port}, has_file={has_file}")
     
-    # track incoming state
+    # track incoming state and outgoing connections
     incoming_connections = {
         'count': 0,
         'lock': threading.Lock(),
         'sockets': {}
     }
+    outgoing_connections = {}
+    
+    interested_from = set()
+    unchoked_upload = set()
+
+    REQUEST_TIMEOUT = 5.0
+    MAX_INFLIGHT_PER_NEIGHBOR = 2
+
+    with distribution_state['lock']:
+        distribution_state.setdefault('inflight', {}).setdefault(peer_id, {}) 
     
     # step 1 start server
     try:
@@ -854,7 +981,7 @@ def peer_process(peer_info, all_peers, common_config, seed_assignments,
     # spin up accept thread
     accept_thread = threading.Thread(
         target=accept_connections,
-        args=(peer_id, server, incoming_connections),
+        args=(peer_id, server, outgoing_connections, incoming_connections),
         daemon=True
     )
     accept_thread.start()
@@ -868,7 +995,7 @@ def peer_process(peer_info, all_peers, common_config, seed_assignments,
     assigned_seed_id = None
     
     # step 2 dial mesh
-    outgoing_connections = {}
+    
 
     mesh_targets = [
         peer
@@ -877,7 +1004,7 @@ def peer_process(peer_info, all_peers, common_config, seed_assignments,
     ]
     connector_thread = threading.Thread(
         target=establish_connections,
-        args=(peer_id, mesh_targets, outgoing_connections),
+        args=(peer_id, mesh_targets, outgoing_connections, incoming_connections),
         daemon=True
     )
     connector_thread.start()
@@ -950,27 +1077,25 @@ def peer_process(peer_info, all_peers, common_config, seed_assignments,
                 break
 
             if has_file and not seed_distribution_done:
-                if seed_deliver_initial_pieces(peer_id, assigned_leechers, seed_piece_plan):
-                    print(f"[Peer {peer_id}] Delivered designated pieces to leechers {assigned_peer_ids}")
+                if DEMO_PROPAGATION:
+                    if seed_deliver_initial_pieces(peer_id, assigned_leechers, seed_piece_plan):
+                        print(f"[Peer {peer_id}] Delivered designated pieces to leechers {assigned_peer_ids}")
                 seed_distribution_done = True
 
             if not has_file and not leecher_fetch_done:
-                if leecher_request_assigned_pieces(peer_id, assigned_seed_id, seed_piece_plan):
-                    leecher_fetch_done = True
-                    if assigned_seed_id is not None:
-                        print(f"[Peer {peer_id}] Received assigned pieces from seed {assigned_seed_id}")
-                else:
-                    # retry soon
-                    pass
-
-            updated = propagate_peer_pieces(
-                peer_id,
-                allowed_upload=allowed_upload_set,
-                allowed_targets=allowed_targets_set
-            )
-            propagated_targets = sorted(set(updated) - {peer_id})
-            if propagated_targets:
-                print(f"[Peer {peer_id}] Propagated pieces to peers {propagated_targets}")
+                if DEMO_PROPAGATION:
+                    if leecher_request_assigned_pieces(peer_id, assigned_seed_id, seed_piece_plan):
+                        leecher_fetch_done = True
+                        if assigned_seed_id is not None:
+                            print(f"[Peer {peer_id}] Received assigned pieces from seed {assigned_seed_id}")
+                    else:
+                        # retry soon
+                        pass
+            if DEMO_PROPAGATION:
+                updated = propagate_peer_pieces(peer_id, allowed_upload=allowed_upload_set, allowed_targets=allowed_targets_set)
+                propagated_targets = sorted(set(updated) - {peer_id})
+                if propagated_targets:
+                    print(f"[Peer {peer_id}] Propagated pieces to peers {propagated_targets}")
 
             evaluate_completion(peer_id)
 
