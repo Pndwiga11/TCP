@@ -1,6 +1,6 @@
 Teammates:
 Dominick Dupuy
-Dylan Ndwiga
+Phillip-Dylan Ndwiga
 Hemdutt Rao
 
 Implementation so far:

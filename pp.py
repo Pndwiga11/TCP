@@ -277,7 +277,7 @@ def signal_handler(sig, frame):
 # register signal handler
 signal.signal(signal.SIGINT, signal_handler)
 
-def read_common_config(filename='project_config_file_small/Common.cfg'):
+def read_common_config(filename='tcp_config_small/Common.cfg'):
     """load common cfg"""
     config = {}
     with open(filename, 'r') as f:
@@ -294,7 +294,7 @@ def read_common_config(filename='project_config_file_small/Common.cfg'):
                         config[key] = value
     return config
 
-def read_peer_info(filename='project_config_file_small/PeerInfo.cfg'):
+def read_peer_info(filename='tcp_config_small/PeerInfo.cfg'):
     """load peer info for testing"""
     peers = []
     with open(filename, 'r') as f:
@@ -308,7 +308,7 @@ def read_peer_info(filename='project_config_file_small/PeerInfo.cfg'):
                         'hostname': parts[1],
                         'port': int(parts[2]),
                         'has_file': int(parts[3]) == 1,
-                        'directory': Path('project_config_file_small') / parts[0]
+                        'directory': Path('tcp_config_small') / parts[0]
                     }
                     peers.append(peer)
     
@@ -431,7 +431,7 @@ def load_file_pieces(peers, common_config):
             if candidate is not None:
                 candidate_path = candidate / file_name
             else:
-                candidate_path = Path('project_config_file_small') / str(peer['peer_id']) / file_name
+                candidate_path = Path('tcp_config_small') / str(peer['peer_id']) / file_name
             if candidate_path.exists():
                 source_path = candidate_path
                 break
@@ -505,7 +505,7 @@ def initialize_distribution_state(peers, pieces, file_name, original_bytes, seed
         for me in distribution_state['choked_by'].keys():
             others = {p['peer_id'] for p in peers if p['peer_id'] != me}
             distribution_state['choked_by'][me] = others
-        base_dir = Path('project_config_file_small')
+        base_dir = Path('tcp_config_small')
         for peer in peers:
             peer_id = peer['peer_id']
             peer_dir = peer.get('directory') or (base_dir / str(peer_id))
@@ -579,7 +579,7 @@ def evaluate_completion(peer_id):
 
 def reset_project_files(peers, file_name):
     """restore files so only seeds keep data"""
-    base_dir = Path('project_config_file_small')
+    base_dir = Path('tcp_config_small')
     removed = []
     restored = []
 
