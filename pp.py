@@ -818,6 +818,17 @@ def broadcast_have(my_id, piece_index, outgoing_connections, incoming_connection
             pass
     print(f"[Peer {my_id}] -> HAVE {piece_index} (broadcast)")
 
+def download_rate(my_id, neighbor_id, window_secs) -> float:
+    dq = distribution_state['download_hist'][my_id][neighbor_id]
+    now = time.time()
+    cutoff = now - window_secs
+    total = 0
+    for t, b in dq:
+        if t >= cutoff:
+            total += b
+    elapsed = max(1e-6, now - cutoff)
+    return total / elapsed
+
 
 def peer_process(peer_info, all_peers, common_config, seed_assignments,
                  leecher_to_seed, leecher_fairness,
@@ -936,15 +947,20 @@ def peer_process(peer_info, all_peers, common_config, seed_assignments,
 
     print(f"[Peer {peer_id}] Setup complete. Running...")
     print(f"[Peer {peer_id}] Outgoing: {list(outgoing_connections.keys())}")
+    
+    k = int(common_config.get('NumberOfPreferredNeighbors', 2))
+    p = int(common_config.get('UnchokingInterval', 5))
+    m = int(common_config.get('OptimisticUnchokingInterval', 10))
 
-    scheduler_thread = threading.Thread(
-        target=choke_scheduler,
-        args=(peer_id, outgoing_connections, incoming_connections, common_config.get('NumberOfPreferredNeighbors', 2),
-          1,
-          common_config.get('OptimisticUnchokingInterval', 10)),
-        daemon=True
-    )
-    scheduler_thread.start()
+    threading.Thread(target=choke_scheduler,
+                    args=(peer_id, k, p),
+                    daemon=True).start()
+
+    threading.Thread(target=optimistic_unchoke_runner,
+                    args=(peer_id, m),
+                    daemon=True).start()
+
+
 
     last_status_time = time.time()
 
@@ -1009,30 +1025,47 @@ def get_socket_for(neighbor_id, outgoing_connections, incoming_connections):
         s = incoming_connections.get('sockets', {}).get(neighbor_id)
     return s
 
-def choke_scheduler(peer_id, outgoing_connections, incoming_connections, k=3, p=1, interval=2):
+def sock_for(peer_id):
+    s = distribution_state['outgoing_sockets'].get(peer_id)
+    if s is None:
+        s = distribution_state['incoming_sockets'].get(peer_id)
+    return s
+
+def choke_scheduler(peer_id, k, interval):
     
     while not shutdown_flag:
         time.sleep(interval)
 
-        neighbors = set(outgoing_connections.keys()) | set(incoming_connections.get('sockets', {}).keys())
+ 
+        with distribution_state['lock']:
+            neighbors = set(distribution_state['outgoing_sockets'].keys()) | \
+                        set(distribution_state['incoming_sockets'].keys())
+            interested = distribution_state['peer_interest_in_me'].get(peer_id, set()) & neighbors
+            unchoked_now = set(distribution_state['unchoked_out'].get(peer_id, set()))
+            optimistic = distribution_state['optimistic_peer'].get(peer_id)
+
         if not neighbors:
             continue
 
+        scored = []
+        for neighbor_id in interested:
+            r = download_rate(peer_id, neighbor_id, interval)
+            scored.append((-r, random.random(), neighbor_id))
+        scored.sort()
+        preferred = {neighbor_id for _, _, neighbor_id in scored[:k]}
+
         with distribution_state['lock']:
-            interested = distribution_state['peer_interest_in_me'].get(peer_id, set()) & neighbors
-            currently_unchoked = set(distribution_state['unchoked_out'].get(peer_id, set()))
+            distribution_state['preferred_out'][peer_id] = preferred
 
-        preferred = set(sorted(interested)[:k])
+        allow = set(preferred)
+        if optimistic is not None:
+            allow.add(optimistic)
 
-        leftovers = list(neighbors - preferred)
-        optimistic = set(random.sample(leftovers, min(p, len(leftovers))))
-
-        allow = preferred | optimistic
-        to_unchoke = allow - currently_unchoked
-        to_choke   = currently_unchoked - allow
+        to_unchoke = allow - unchoked_now
+        to_choke   = unchoked_now - allow
 
         for neighbor_id in to_unchoke:
-            s = get_socket_for(neighbor_id, outgoing_connections, incoming_connections)
+            s = sock_for(neighbor_id)
             if not s:
                 print(f"[Peer {peer_id}] WARN: no socket for {neighbor_id} when UNCHOKE")
                 continue
@@ -1043,7 +1076,7 @@ def choke_scheduler(peer_id, outgoing_connections, incoming_connections, k=3, p=
             maybe_request_next(peer_id, neighbor_id, s)
 
         for neighbor_id in to_choke:
-            s = get_socket_for(neighbor_id, outgoing_connections, incoming_connections)
+            s = sock_for(neighbor_id)
             if not s:
                 print(f"[Peer {peer_id}] WARN: no socket for {neighbor_id} when CHOKE")
                 continue
@@ -1052,7 +1085,51 @@ def choke_scheduler(peer_id, outgoing_connections, incoming_connections, k=3, p=
                 distribution_state['unchoked_out'].setdefault(peer_id, set()).discard(neighbor_id)
             print(f"[Peer {peer_id}] -> CHOKE to {neighbor_id}")
 
-        
+def optimistic_unchoke_runner(peer_id, interval_m):
+
+    last = None
+    while not shutdown_flag:
+        time.sleep(interval_m)
+
+        with distribution_state['lock']:
+            neighbors   = set(distribution_state['outgoing_sockets'].keys()) | \
+                          set(distribution_state['incoming_sockets'].keys())
+            interested  = distribution_state['peer_interest_in_me'].get(peer_id, set()) & neighbors
+            preferred   = set(distribution_state['preferred_out'].get(peer_id, set()))
+            unchoked    = set(distribution_state['unchoked_out'].get(peer_id, set()))
+
+        candidates = list(interested - preferred - unchoked)
+        if not candidates:
+            with distribution_state['lock']:
+                distribution_state['optimistic_peer'][peer_id] = None
+            continue
+
+        pick = random.choice(candidates)
+        if pick == last:
+            continue 
+
+        if last is not None and last not in preferred:
+            s_old = sock_for(last)
+            if s_old:
+                send_frame(s_old, MSG_CHOKE, b'')
+                with distribution_state['lock']:
+                    distribution_state['unchoked_out'].setdefault(peer_id, set()).discard(last)
+                print(f"[Peer {peer_id}] -> CHOKE (old optimistic) {last}")
+
+
+        with distribution_state['lock']:
+            distribution_state['optimistic_peer'][peer_id] = pick
+
+        s_new = sock_for(pick)
+        if s_new:
+            send_frame(s_new, MSG_UNCHOKE, b'')
+            with distribution_state['lock']:
+                distribution_state['unchoked_out'].setdefault(peer_id, set()).add(pick)
+            print(f"[Peer {peer_id}] -> OPT-UNCHOKE to {pick}")
+            maybe_request_next(peer_id, pick, s_new)
+
+        last = pick
+   
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser()
@@ -1089,6 +1166,8 @@ if __name__ == "__main__":
     distribution_state.setdefault('outgoing_sockets', {})
     distribution_state.setdefault('incoming_sockets', {})
     distribution_state.setdefault('neighbor_locks', {})
+    
+    distribution_state.setdefault('preferred_out', defaultdict(set))
 
     print("="*60)
     print("Common Config:")
