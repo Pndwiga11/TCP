@@ -1090,7 +1090,7 @@ def peer_process(peer_info, all_peers, common_config, seed_assignments,
     print(f"[Peer {peer_id}] Setup complete. Running...")
     print(f"[Peer {peer_id}] Outgoing: {list(outgoing_connections.keys())}")
     
-    k = int(common_config.get('NumberOfPreferredNeighbors', 2))
+    k = int(common_config.get('NumberOfPreferredNeighbors', 3))
     p = int(common_config.get('UnchokingInterval', 5))
     m = int(common_config.get('OptimisticUnchokingInterval', 10))
 
