@@ -1,3 +1,5 @@
+# --- Imports ---
+
 import socket
 import threading
 import time
@@ -9,13 +11,13 @@ from pathlib import Path
 import argparse
 from collections import defaultdict, deque
 
-CONFIG_DIR: Path | None = None
+# --- Protocol Constants ---
 
-# --- Protocol constants ---
 PSTR = b"P2PFILESHARINGPROJ"          # 18 bytes
 HS_RESERVED = b"\x00" * 10            # 10 bytes
 
-# message type ids
+# --- Message Type Ids ---
+
 MSG_CHOKE = 0
 MSG_UNCHOKE = 1
 MSG_INTERESTED = 2
@@ -24,6 +26,41 @@ MSG_HAVE = 4
 MSG_BITFIELD = 5
 MSG_REQUEST = 6
 MSG_PIECE = 7
+
+# --- Global Flags ---
+
+CONFIG_DIR: Path | None = None
+TESTING = False # testing flag for dev runs
+shutdown_flag = False # shutdown flag
+
+# --- Distribution State Dict ---
+
+distribution_state = {
+    'pieces': [],
+    'total_pieces': 0,
+    'file_name': '',
+    'original_bytes': b'',
+    'peer_paths': {},
+    'peer_pieces': {},
+    'peer_completed': set(),
+    'written': set(),
+    'seed_assignments': {},
+    'leecher_to_seed': {},
+    'seed_piece_plan': {},
+    'seed_ids': set(),
+    'peer_roles': {},
+    'lock': threading.Lock(),
+    'neighbor_bitfields': {},
+    'am_interested_in': {},
+    'peer_interest_in_me': {},
+    'unchoked_out': {},
+    'choked_by': {},
+    'download_bytes': {},
+    'neighbor_bitfields': {},
+    'inflight': {}   
+}
+
+# --- Config and Startup Helpers ---
 
 def find_config_dir(explicit: str | None) -> Path:
     """
@@ -51,9 +88,100 @@ def find_config_dir(explicit: str | None) -> Path:
         "Tried: " + ", ".join(str(c) for c in candidates)
     )
 
+def read_common_config(config_dir: Path, filename: str | None = None):
+    if filename is None:
+        filename = config_dir / "Common.cfg"
+    else:
+        filename = Path(filename)
 
+    config = {}
+    with open(filename, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split()
+            if len(parts) == 2:
+                key, value = parts
+                config[key] = int(value) if value.isdigit() else value
+    return config
 
-# --- Socket helpers ---
+def read_peer_info(config_dir: Path, filename: str | None = None):
+    if filename is None:
+        filename = config_dir / "PeerInfo.cfg"
+    else:
+        filename = Path(filename)
+
+    peers = []
+    with open(filename, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split()
+            if len(parts) != 4:
+                continue
+            peer_id_str, host, port_str, has_file_flag = parts
+            peer = {
+                "peer_id": int(peer_id_str),
+                "hostname": host,
+                "port": int(port_str),
+                "has_file": has_file_flag == "1",
+                "directory": config_dir / peer_id_str,
+            }
+            peers.append(peer)
+
+    # Optional local override (see next section)
+    if TESTING:
+        print("\n" + "!" * 60)
+        print("TESTING mode: overriding host/port to localhost:6000+peer_id")
+        ids = [p["peer_id"] for p in peers]
+        min_peer_id = min(ids)
+        for peer in peers:
+            peer["hostname"] = "127.0.0.1"
+            peer["port"] = 6000 + peer["peer_id"]
+            peer["directory"] = config_dir / str(peer["peer_id"])
+
+    return peers
+
+# --- Logging and Signal Handling ---
+
+log_locks = defaultdict(threading.Lock)
+
+def init_peer_log(peer_id: int):
+    """
+    Create / truncate the log file for this peer.
+    File name: log_peer_<peer_id>.log in the current working directory.
+    """
+    filename = f"log_peer_{peer_id}.log"
+    with log_locks[peer_id]:
+        with open(filename, "w", encoding="utf-8") as f:
+            pass
+
+def log_peer(peer_id: int, message: str):
+    """
+    Append a timestamped line to this peer's log file.
+    """
+    filename = f"log_peer_{peer_id}.log"
+    ts = time.strftime("%m/%d/%Y %H:%M:%S", time.localtime())
+    line = f"{ts}: {message}\n"
+    with log_locks[peer_id]:
+        with open(filename, "a", encoding="utf-8") as f:
+            f.write(line)
+
+def signal_handler(sig, frame):
+    """handle ctrl+c"""
+    global shutdown_flag
+    print("\n\n" + "="*60)
+    print("Ctrl+C detected! Shutting down all peers...")
+    print("="*60)
+    shutdown_flag = True
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler) # register signal handler
+
+# --- Low-Level Network / Protocol Utilities ---
+
 def send_all(sock, data):
     view = memoryview(data)
     while view:
@@ -77,8 +205,7 @@ def recv_exact(sock, n) -> bytes:
         view = view[k:]
     return bytes(buf)
 
-# Handshake 32 bytes
-def send_handshake(sock, my_peer_id):
+def send_handshake(sock, my_peer_id): # Handshake 32 bytes
     payload = PSTR + HS_RESERVED + my_peer_id.to_bytes(4, "big", signed=False)
     send_all(sock, payload)
 
@@ -91,8 +218,7 @@ def recv_handshake(sock) -> int:
         raise ValueError("bad handshake")
     return pid
 
-# length-prefixed frame
-def send_frame(sock, msg_type, payload = b""):
+def send_frame(sock, msg_type, payload = b""): # length-prefixed frame
     total_len = 1 + len(payload)
     send_all(sock, total_len.to_bytes(4, "big") + bytes([msg_type]) + payload)
 
@@ -125,6 +251,384 @@ def parse_bitfield_bytes(b, total_pieces):
             bitidx += 1
     return have
 
+# --- Swarm / Distribution Setup ---
+
+def assign_leechers_to_seeds(peers):
+    """balance leechers across seeds"""
+    seeds = sorted(
+        [peer for peer in peers if peer['has_file']],
+        key=lambda peer: peer['peer_id']
+    )
+    leechers = sorted(
+        [peer for peer in peers if not peer['has_file']],
+        key=lambda peer: peer['peer_id']
+    )
+
+    seed_assignments = {seed['peer_id']: [] for seed in seeds}
+    leecher_to_seed = {}
+    fairness_summary = {
+        'total_leechers': len(leechers),
+        'seed_ids': [seed['peer_id'] for seed in seeds],
+        'baseline_leechers_per_seed': 0,
+        'remainder': 0,
+        'per_seed': {}
+    }
+
+    if not seeds or not leechers:
+        for seed in seeds:
+            fairness_summary['per_seed'][seed['peer_id']] = 0
+        return seed_assignments, leecher_to_seed, fairness_summary
+
+    base = len(leechers) // len(seeds)
+    remainder = len(leechers) % len(seeds)
+    fairness_summary['baseline_leechers_per_seed'] = base
+    fairness_summary['remainder'] = remainder
+
+    index = 0
+    for position, seed in enumerate(seeds):
+        count = base + (1 if position < remainder else 0)
+        assigned_leechers = leechers[index:index + count]
+        seed_assignments[seed['peer_id']] = assigned_leechers
+        fairness_summary['per_seed'][seed['peer_id']] = len(assigned_leechers)
+
+        for leecher in assigned_leechers:
+            leecher_to_seed[leecher['peer_id']] = seed['peer_id']
+
+        index += count
+
+    return seed_assignments, leecher_to_seed, fairness_summary
+
+def plan_piece_distribution(peers, common_config):
+    """balance pieces across seeds"""
+    seeds = sorted(
+        [peer for peer in peers if peer['has_file']],
+        key=lambda peer: peer['peer_id']
+    )
+
+    assignments = {seed['peer_id']: [] for seed in seeds}
+    summary = {
+        'total_pieces': 0,
+        'baseline_pieces_per_seed': 0,
+        'remainder': 0,
+        'per_seed': {}
+    }
+
+    if not seeds:
+        return assignments, summary
+
+    file_size = common_config.get('FileSize', 0) or 0
+    piece_size = common_config.get('PieceSize', 0) or 0
+
+    if piece_size <= 0:
+        return assignments, summary
+
+    total_pieces = (file_size + piece_size - 1) // piece_size if file_size > 0 else 0
+    summary['total_pieces'] = total_pieces
+
+    if total_pieces == 0:
+        for seed in seeds:
+            summary['per_seed'][seed['peer_id']] = 0
+        return assignments, summary
+
+    base = total_pieces // len(seeds)
+    remainder = total_pieces % len(seeds)
+    summary['baseline_pieces_per_seed'] = base
+    summary['remainder'] = remainder
+
+    next_piece = 0
+    for position, seed in enumerate(seeds):
+        count = base + (1 if position < remainder else 0)
+        pieces = list(range(next_piece, next_piece + count))
+        assignments[seed['peer_id']] = pieces
+        summary['per_seed'][seed['peer_id']] = len(pieces)
+        next_piece += count
+
+    return assignments, summary
+
+def load_file_pieces(peers, common_config, config_dir: Path):
+    """read source file into pieces"""
+    file_name = common_config.get('FileName', 'thefile')
+    piece_size = common_config.get('PieceSize', 0) or 0
+
+    source_path = None
+    for peer in peers:
+        if peer['has_file']:
+            candidate = peer.get('directory')
+            if candidate is not None:
+                candidate_path = candidate / file_name
+            else:
+                candidate_path = config_dir / str(peer["peer_id"]) / file_name
+            if candidate_path.exists():
+                source_path = candidate_path
+                break
+
+    file_bytes = b''
+    if source_path and source_path.exists():
+        file_bytes = source_path.read_bytes()
+        print(f"\nLoaded source file from {source_path} ({len(file_bytes)} bytes)")
+    else:
+        print("\nWarning: Unable to locate source file in seed directories. Starting with empty data set.")
+
+    if piece_size > 0:
+        pieces = [
+            file_bytes[offset:offset + piece_size]
+            for offset in range(0, len(file_bytes), piece_size)
+        ]
+        if not pieces:
+            pieces = [b'']
+    else:
+        pieces = [file_bytes]
+
+    return pieces, file_name, file_bytes
+
+def initialize_distribution_state(peers, pieces, file_name, original_bytes, seed_assignments, leecher_to_seed, seed_piece_plan):
+    """init distribution state"""
+    total_pieces = len(pieces)
+
+    with distribution_state['lock']:
+        distribution_state['pieces'] = pieces
+        distribution_state['total_pieces'] = total_pieces
+        distribution_state['file_name'] = file_name
+        distribution_state['original_bytes'] = original_bytes
+        distribution_state['peer_paths'] = {}
+        distribution_state['peer_pieces'] = {}
+        distribution_state['peer_completed'] = set()
+        distribution_state['written'] = set()
+        distribution_state['seed_assignments'] = {
+            seed_id: {leecher['peer_id'] for leecher in leechers}
+            for seed_id, leechers in seed_assignments.items()
+        }
+        distribution_state['leecher_to_seed'] = dict(leecher_to_seed)
+        distribution_state['seed_piece_plan'] = {
+            seed_id: set(piece_list)
+            for seed_id, piece_list in seed_piece_plan.items()
+        }
+        distribution_state['seed_ids'] = {
+            peer['peer_id'] for peer in peers if peer['has_file']
+        }
+        distribution_state['peer_roles'] = {
+            peer['peer_id']: peer['has_file'] for peer in peers
+        }
+        distribution_state['am_interested_in'] = {
+            peer['peer_id']: set() for peer in peers
+        }
+        distribution_state['peer_interest_in_me'] = {
+            peer['peer_id']: set() for peer in peers
+        }
+        distribution_state['neighbor_bitfields'] = {}
+        for peer in peers:
+            distribution_state['neighbor_bitfields'][peer['peer_id']] = {}
+        distribution_state['unchoked_out'] = {
+            peer['peer_id']: set() for peer in peers
+        }
+        distribution_state['choked_by'] = {
+            peer['peer_id']: set() for peer in peers
+        }
+        distribution_state['download_bytes'] = {
+            peer['peer_id']: {}   for peer in peers
+        }
+        for me in distribution_state['choked_by'].keys():
+            others = {p['peer_id'] for p in peers if p['peer_id'] != me}
+            distribution_state['choked_by'][me] = others
+        base_dir = CONFIG_DIR
+        for peer in peers:
+            peer_id = peer['peer_id']
+            peer_dir = peer.get('directory') or (base_dir / str(peer_id))
+            peer_dir.mkdir(parents=True, exist_ok=True)
+            distribution_state['peer_paths'][peer_id] = peer_dir
+
+            if peer['has_file']:
+                distribution_state['peer_pieces'][peer_id] = set(range(total_pieces))
+            else:
+                distribution_state['peer_pieces'][peer_id] = set()
+        distribution_state['neighbor_bitfields'] = {
+            p['peer_id']: {} for p in peers
+        }
+        distribution_state['inflight'] = {
+            p['peer_id']: {} for p in peers
+        }
+
+# --- File Completion and Reset Utilities ---
+
+def write_completed_file(peer_id):
+    """write assembled file once"""
+    with distribution_state['lock']:
+        if peer_id in distribution_state['written']:
+            return
+
+        pieces = distribution_state['pieces']
+        file_name = distribution_state['file_name']
+        peer_path = distribution_state['peer_paths'].get(peer_id)
+
+    if peer_path is None:
+        return
+
+    peer_path.mkdir(parents=True, exist_ok=True)
+    output_path = peer_path / file_name
+    with open(output_path, 'wb') as f:
+        for chunk in pieces:
+            f.write(chunk)
+
+    with distribution_state['lock']:
+        distribution_state['written'].add(peer_id)
+
+    print(f"[Peer {peer_id}] Assembled file written to {output_path}")
+
+def evaluate_completion(peer_id):
+    """check peer and swarm done"""
+    global shutdown_flag
+    write_targets = []
+    swarm_complete = False
+
+    with distribution_state['lock']:
+        total_pieces = distribution_state['total_pieces']
+        peer_pieces = distribution_state['peer_pieces'].get(peer_id, set())
+
+        if total_pieces == len(peer_pieces):
+            if peer_id not in distribution_state['peer_completed']:
+                distribution_state['peer_completed'].add(peer_id)
+                write_targets.append(peer_id)
+
+        peer_count = len(distribution_state['peer_pieces'])
+        if peer_count and len(distribution_state['peer_completed']) == peer_count:
+            swarm_complete = True
+
+    for pid in write_targets:
+        log_peer(pid, f"Peer {pid} has downloaded the complete file.")
+        write_completed_file(pid)
+
+    if swarm_complete and not shutdown_flag:
+        print("\n" + "="*60)
+        print("All peers now have the complete dataset. Initiating coordinated shutdown.")
+        print("="*60)
+        shutdown_flag = True
+
+def reset_project_files(peers, file_name, config_dir: Path):
+    """restore files so only seeds keep data"""
+    base_dir = config_dir
+    removed = []
+    restored = []
+
+    with distribution_state['lock']:
+        original_bytes = distribution_state.get('original_bytes', b'')
+        total_pieces = distribution_state.get('total_pieces', 0)
+
+    for peer in peers:
+        peer_dir = peer.get('directory') or (base_dir / str(peer['peer_id']))
+        target = peer_dir / file_name
+
+        if peer['has_file']:
+            if original_bytes:
+                peer_dir.mkdir(parents=True, exist_ok=True)
+                try:
+                    target.write_bytes(original_bytes)
+                except Exception as exc:
+                    print(f"[Reset] failed to write seed file for {peer['peer_id']}: {exc}")
+            restored.append(peer['peer_id'])
+        else:
+            if target.exists():
+                try:
+                    target.unlink()
+                    removed.append(peer['peer_id'])
+                except Exception as exc:
+                    print(f"[Reset] failed to remove file for {peer['peer_id']}: {exc}")
+
+    with distribution_state['lock']:
+        seed_ids = {peer['peer_id'] for peer in peers if peer['has_file']}
+        for peer in peers:
+            peer_id = peer['peer_id']
+            if peer_id in seed_ids:
+                distribution_state['peer_pieces'][peer_id] = set(range(total_pieces))
+            else:
+                distribution_state['peer_pieces'][peer_id] = set()
+        distribution_state['peer_completed'] = set()
+        distribution_state['written'] = set()
+
+    print("\n" + "="*60)
+    print("Project files reset to initial distribution.")
+    if restored:
+        print(f"  Seeds restored: {sorted(restored)}")
+    if removed:
+        print(f"  Leecher files removed: {sorted(removed)}")
+    print("="*60)
+
+# --- Socket Lookup and Rate Helpers ---
+
+def sock_for(my_id, neighbor_id):
+    """
+    Return the socket my_id should use to talk to neighbor_id,
+    using either the outgoing or incoming side.
+    """
+    s = distribution_state['outgoing_sockets'].get(my_id, {}).get(neighbor_id)
+    if s is None:
+        s = distribution_state['incoming_sockets'].get(my_id, {}).get(neighbor_id)
+    return s
+
+def download_rate(my_id, neighbor_id, window_secs) -> float:
+    dq = distribution_state['download_hist'][my_id][neighbor_id]
+    now = time.time()
+    cutoff = now - window_secs
+    total = 0
+    for t, b in dq:
+        if t >= cutoff:
+            total += b
+    elapsed = max(1e-6, now - cutoff)
+    return total / elapsed
+
+# --- Request / Piece-Selection Logic ---
+
+def pick_next_piece_to_request(my_id, neighbor_id):
+    with distribution_state['lock']:
+        my_have  = distribution_state['peer_pieces'].get(my_id, set())
+        inflight_vals = distribution_state['inflight'].get(my_id, {}).values()
+        inflight_pieces = {piece for (piece, _) in inflight_vals}
+        nb_map   = distribution_state['neighbor_bitfields'].get(my_id, {})
+
+        avail_counts = {}
+        for nb, have in nb_map.items():
+            for idx in have:
+                if idx not in my_have and idx not in inflight_pieces:
+                    avail_counts[idx] = avail_counts.get(idx, 0) + 1
+
+        candidates = [i for i in nb_map.get(neighbor_id, set())
+                      if i not in my_have and i not in inflight_pieces]
+        if not candidates:
+            return None
+
+        candidates.sort(key=lambda i: (avail_counts.get(i, 0), i))
+        return candidates[0]
+
+def send_request(my_id, neighbor_id, sock, piece_index):
+    payload = piece_index.to_bytes(4, 'big', signed=False)
+    send_frame(sock, MSG_REQUEST, payload)
+    with distribution_state['lock']:
+        distribution_state['inflight'][my_id][neighbor_id] = (piece_index, time.time())
+    print(f"[Peer {my_id}] -> REQUEST piece {piece_index} to {neighbor_id}")
+
+def maybe_request_next(my_id, neighbor_id, sock):
+    with distribution_state['lock']:
+        interested = neighbor_id in distribution_state['am_interested_in'].get(my_id, set())
+        unchoked_by_neighbor = neighbor_id not in distribution_state['choked_by'].get(my_id, set())
+        has_inflight = neighbor_id in distribution_state['inflight'].get(my_id, {})
+    if not (interested and unchoked_by_neighbor) or has_inflight:
+        return
+    nxt = pick_next_piece_to_request(my_id, neighbor_id)
+    if nxt is not None:
+        send_request(my_id, neighbor_id, sock, nxt)
+
+def broadcast_have(my_id, piece_index, outgoing_connections, incoming_connections):
+    payload = piece_index.to_bytes(4, 'big', signed=False)
+    with incoming_connections['lock']:
+        inbound = dict(incoming_connections.get('sockets', {}))
+    all_socks = dict(outgoing_connections); all_socks.update(inbound)
+
+    for nb_id, sock in list(all_socks.items()):
+        try:
+            send_frame(sock, MSG_HAVE, payload)
+        except Exception:
+            pass
+    print(f"[Peer {my_id}] -> HAVE {piece_index} (broadcast)")
+
 def compute_and_send_interest(my_id, sock, neighbor_id, neighbor_have_hint=None):
     """
     Decide whether I'm interested in neighbor_id.
@@ -155,20 +659,6 @@ def compute_and_send_interest(my_id, sock, neighbor_id, neighbor_have_hint=None)
         print(f"[Peer {my_id}] -> NOT INTERESTED to {neighbor_id}")
         log_peer(my_id, f"Peer {my_id} has sent the 'not interested' message to Peer {neighbor_id}.")
 
-
-
-def set_choke_state(my_id, neighbor_id, sock, choked: bool):
-    if choked:
-        send_frame(sock, MSG_CHOKE, b"")
-        with distribution_state['lock']:
-            distribution_state['unchoked_out'][my_id].discard(neighbor_id)
-        print(f"[Peer {my_id}] -> CHOKE to {neighbor_id}")
-    else:
-        send_frame(sock, MSG_UNCHOKE, b"")
-        with distribution_state['lock']:
-            distribution_state['unchoked_out'][my_id].add(neighbor_id)
-        print(f"[Peer {my_id}] -> UNCHOKE to {neighbor_id}")
-
 def request_watchdog(my_id, timeout=15):
     while not shutdown_flag:
         time.sleep(1)
@@ -191,6 +681,152 @@ def request_watchdog(my_id, timeout=15):
                     print(f"[Peer {my_id}] RETRY piece {piece_idx} with {neighbor_id}")
                 except Exception:
                     pass
+
+# --- Connection Management (Server + Client) ---
+
+def handle_incoming_connection(peer_id, client_socket, address, outgoing_connections, incoming_connections):
+    """handle incoming peer socket"""
+    print(f"[Peer {peer_id}] Handling connection from {address}")
+    
+    try:
+       # --- Handshake ---
+        their_id = recv_handshake(client_socket)
+        send_handshake(client_socket, peer_id)
+        print(f"[Peer {peer_id}] Handshake OK with {their_id} from {address}")
+        with incoming_connections['lock']:
+            incoming_connections['sockets'][their_id] = client_socket
+        with distribution_state['lock']:
+            distribution_state['incoming_sockets'].setdefault(peer_id, {})[their_id] = client_socket
+            distribution_state['neighbor_locks'].setdefault(their_id, threading.Lock())
+        print(f"[Peer {peer_id}] mapped IN  -> {their_id}")
+
+        log_peer(peer_id, f"Peer {peer_id} is connected from Peer {their_id}.")
+        
+        # --- Send our bitfield right after handshake ---
+        with distribution_state['lock']:
+            my_bits = build_bitfield_bytes(
+                distribution_state['peer_pieces'][peer_id],
+                distribution_state['total_pieces']
+            )
+        send_frame(client_socket, MSG_BITFIELD, my_bits)
+
+        # --- Enter framed-message receive loop ---
+        receiver_loop(peer_id, client_socket, their_id, outgoing_connections, incoming_connections)
+                
+    except Exception as e:
+        if not shutdown_flag:
+            print(f"[Peer {peer_id}] Error handling connection: {e}")
+    finally:
+        try:
+            client_socket.close()
+        except:
+            pass
+
+def accept_connections(peer_id, server_socket, outgoing_connections, incoming_connections):
+    """accept peer sockets"""
+    print(f"[Peer {peer_id}] Ready to accept connections")
+    
+    server_socket.settimeout(1.0)
+    
+    while not shutdown_flag:
+        try:
+            client_socket, address = server_socket.accept()
+            print(f"[Peer {peer_id}] Accepted connection from {address}")
+            
+            # count incoming connection
+            with incoming_connections['lock']:
+                incoming_connections['count'] += 1
+            
+            # spawn handler thread
+            handler_thread = threading.Thread(
+                target=handle_incoming_connection,
+                args=(peer_id, client_socket, address, outgoing_connections, incoming_connections),
+                daemon=True
+            )
+            handler_thread.start()
+            
+        except socket.timeout:
+            continue
+        except Exception as e:
+            if not shutdown_flag:
+                print(f"[Peer {peer_id}] Error accepting connection: {e}")
+
+def establish_connections(peer_id, connection_targets, outgoing_connections, incoming_connections):
+    """dial planned peers with retries"""
+    targets = {
+        peer['peer_id']: peer
+        for peer in connection_targets
+        if peer['peer_id'] != peer_id
+    }
+    last_failure_log = {}
+
+    while targets and not shutdown_flag:
+        for target_id in list(targets.keys()):
+            if shutdown_flag:
+                break
+
+            if target_id in outgoing_connections:
+                targets.pop(target_id, None)
+                continue
+
+            target_peer = targets[target_id]
+            client = None
+
+            try:
+                print(f"[Peer {peer_id}] Connecting to peer {target_id} at "
+                      f"{target_peer['hostname']}:{target_peer['port']}")
+
+                client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                client.settimeout(5.0)
+                client.connect((target_peer['hostname'], target_peer['port']))
+
+                # --- handshake both ways ---
+                send_handshake(client, peer_id)
+                their_id = recv_handshake(client)
+                print(f"[Peer {peer_id}] Handshake OK with {their_id}")
+                log_peer(peer_id, f"Peer {peer_id} makes a connection to Peer {their_id}.")
+                with distribution_state['lock']:
+                    distribution_state['outgoing_sockets'].setdefault(peer_id, {})[their_id] = client
+                    distribution_state['neighbor_locks'].setdefault(their_id, threading.Lock())
+                print(f"[Peer {peer_id}] mapped OUT -> {their_id}")
+
+                # --- send our bitfield immediately ---
+                with distribution_state['lock']:
+                    my_bits = build_bitfield_bytes(
+                        distribution_state['peer_pieces'][peer_id],
+                        distribution_state['total_pieces']
+                    )
+                send_frame(client, MSG_BITFIELD, my_bits)
+
+                client.settimeout(None)
+                outgoing_connections[target_id] = client
+                targets.pop(target_id, None)
+
+                # --- start a receiver for outgoing connection ---
+                threading.Thread(
+                    target=receiver_loop,
+                    args=(peer_id, client, target_id, outgoing_connections, incoming_connections),
+                    daemon=True
+                ).start()
+
+            except Exception as e:
+                if client is not None:
+                    try:
+                        client.close()
+                    except Exception:
+                        pass
+
+                now = time.time()
+                last_logged = last_failure_log.get(target_id, 0)
+                if now - last_logged > 5:
+                    print(f"[Peer {peer_id}] Failed to connect to peer {target_id}: {e} "
+                          f"(retrying)")
+                    last_failure_log[target_id] = now
+
+        if targets and not shutdown_flag:
+            time.sleep(1)
+
+# --- Message Receive Loop ---
 
 def receiver_loop(peer_id, sock, remote_peer_id_or_addr, outgoing_connections, incoming_connections):
     sock.settimeout(1.0)
@@ -329,645 +965,119 @@ def receiver_loop(peer_id, sock, remote_peer_id_or_addr, outgoing_connections, i
         else:
             pass
 
-# testing flag for dev runs
-TESTING = False  # toggle flag
+# --- Choking / Unchoking Policy ---
 
-# shutdown flag
-shutdown_flag = False
-
-distribution_state = {
-    'pieces': [],
-    'total_pieces': 0,
-    'file_name': '',
-    'original_bytes': b'',
-    'peer_paths': {},
-    'peer_pieces': {},
-    'peer_completed': set(),
-    'written': set(),
-    'seed_assignments': {},
-    'leecher_to_seed': {},
-    'seed_piece_plan': {},
-    'seed_ids': set(),
-    'peer_roles': {},
-    'lock': threading.Lock(),
-    'neighbor_bitfields': {},
-    'am_interested_in': {},
-    'peer_interest_in_me': {},
-    'unchoked_out': {},
-    'choked_by': {},
-    'download_bytes': {},
-    'neighbor_bitfields': {},
-    'inflight': {}   
-    
-}
-
-# --- Logging helpers  ---
-
-log_locks = defaultdict(threading.Lock)
-
-def init_peer_log(peer_id: int):
-    """
-    Create / truncate the log file for this peer.
-    File name: log_peer_<peer_id>.log in the current working directory.
-    """
-    filename = f"log_peer_{peer_id}.log"
-    with log_locks[peer_id]:
-        with open(filename, "w", encoding="utf-8") as f:
-            pass
-
-def log_peer(peer_id: int, message: str):
-    """
-    Append a timestamped line to this peer's log file.
-    """
-    filename = f"log_peer_{peer_id}.log"
-    ts = time.strftime("%m/%d/%Y %H:%M:%S", time.localtime())
-    line = f"{ts}: {message}\n"
-    with log_locks[peer_id]:
-        with open(filename, "a", encoding="utf-8") as f:
-            f.write(line)
-
-
-def signal_handler(sig, frame):
-    """handle ctrl+c"""
-    global shutdown_flag
-    print("\n\n" + "="*60)
-    print("Ctrl+C detected! Shutting down all peers...")
-    print("="*60)
-    shutdown_flag = True
-    sys.exit(0)
-
-# register signal handler
-signal.signal(signal.SIGINT, signal_handler)
-
-def read_common_config(config_dir: Path, filename: str | None = None):
-    if filename is None:
-        filename = config_dir / "Common.cfg"
-    else:
-        filename = Path(filename)
-
-    config = {}
-    with open(filename, "r") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            parts = line.split()
-            if len(parts) == 2:
-                key, value = parts
-                config[key] = int(value) if value.isdigit() else value
-    return config
-
-
-def read_peer_info(config_dir: Path, filename: str | None = None):
-    if filename is None:
-        filename = config_dir / "PeerInfo.cfg"
-    else:
-        filename = Path(filename)
-
-    peers = []
-    with open(filename, "r") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            parts = line.split()
-            if len(parts) != 4:
-                continue
-            peer_id_str, host, port_str, has_file_flag = parts
-            peer = {
-                "peer_id": int(peer_id_str),
-                "hostname": host,
-                "port": int(port_str),
-                "has_file": has_file_flag == "1",
-                "directory": config_dir / peer_id_str,
-            }
-            peers.append(peer)
-
-    # Optional local override (see next section)
-    if TESTING:
-        print("\n" + "!" * 60)
-        print("TESTING mode: overriding host/port to localhost:6000+peer_id")
-        ids = [p["peer_id"] for p in peers]
-        min_peer_id = min(ids)
-        for peer in peers:
-            peer["hostname"] = "127.0.0.1"
-            peer["port"] = 6000 + peer["peer_id"]
-            peer["directory"] = config_dir / str(peer["peer_id"])
-
-    return peers
-
-
-
-
-def assign_leechers_to_seeds(peers):
-    """balance leechers across seeds"""
-    seeds = sorted(
-        [peer for peer in peers if peer['has_file']],
-        key=lambda peer: peer['peer_id']
-    )
-    leechers = sorted(
-        [peer for peer in peers if not peer['has_file']],
-        key=lambda peer: peer['peer_id']
-    )
-
-    seed_assignments = {seed['peer_id']: [] for seed in seeds}
-    leecher_to_seed = {}
-    fairness_summary = {
-        'total_leechers': len(leechers),
-        'seed_ids': [seed['peer_id'] for seed in seeds],
-        'baseline_leechers_per_seed': 0,
-        'remainder': 0,
-        'per_seed': {}
-    }
-
-    if not seeds or not leechers:
-        for seed in seeds:
-            fairness_summary['per_seed'][seed['peer_id']] = 0
-        return seed_assignments, leecher_to_seed, fairness_summary
-
-    base = len(leechers) // len(seeds)
-    remainder = len(leechers) % len(seeds)
-    fairness_summary['baseline_leechers_per_seed'] = base
-    fairness_summary['remainder'] = remainder
-
-    index = 0
-    for position, seed in enumerate(seeds):
-        count = base + (1 if position < remainder else 0)
-        assigned_leechers = leechers[index:index + count]
-        seed_assignments[seed['peer_id']] = assigned_leechers
-        fairness_summary['per_seed'][seed['peer_id']] = len(assigned_leechers)
-
-        for leecher in assigned_leechers:
-            leecher_to_seed[leecher['peer_id']] = seed['peer_id']
-
-        index += count
-
-    return seed_assignments, leecher_to_seed, fairness_summary
-
-
-def plan_piece_distribution(peers, common_config):
-    """balance pieces across seeds"""
-    seeds = sorted(
-        [peer for peer in peers if peer['has_file']],
-        key=lambda peer: peer['peer_id']
-    )
-
-    assignments = {seed['peer_id']: [] for seed in seeds}
-    summary = {
-        'total_pieces': 0,
-        'baseline_pieces_per_seed': 0,
-        'remainder': 0,
-        'per_seed': {}
-    }
-
-    if not seeds:
-        return assignments, summary
-
-    file_size = common_config.get('FileSize', 0) or 0
-    piece_size = common_config.get('PieceSize', 0) or 0
-
-    if piece_size <= 0:
-        return assignments, summary
-
-    total_pieces = (file_size + piece_size - 1) // piece_size if file_size > 0 else 0
-    summary['total_pieces'] = total_pieces
-
-    if total_pieces == 0:
-        for seed in seeds:
-            summary['per_seed'][seed['peer_id']] = 0
-        return assignments, summary
-
-    base = total_pieces // len(seeds)
-    remainder = total_pieces % len(seeds)
-    summary['baseline_pieces_per_seed'] = base
-    summary['remainder'] = remainder
-
-    next_piece = 0
-    for position, seed in enumerate(seeds):
-        count = base + (1 if position < remainder else 0)
-        pieces = list(range(next_piece, next_piece + count))
-        assignments[seed['peer_id']] = pieces
-        summary['per_seed'][seed['peer_id']] = len(pieces)
-        next_piece += count
-
-    return assignments, summary
-
-
-def load_file_pieces(peers, common_config, config_dir: Path):
-    """read source file into pieces"""
-    file_name = common_config.get('FileName', 'thefile')
-    piece_size = common_config.get('PieceSize', 0) or 0
-
-    source_path = None
-    for peer in peers:
-        if peer['has_file']:
-            candidate = peer.get('directory')
-            if candidate is not None:
-                candidate_path = candidate / file_name
-            else:
-                candidate_path = config_dir / str(peer["peer_id"]) / file_name
-            if candidate_path.exists():
-                source_path = candidate_path
-                break
-
-    file_bytes = b''
-    if source_path and source_path.exists():
-        file_bytes = source_path.read_bytes()
-        print(f"\nLoaded source file from {source_path} ({len(file_bytes)} bytes)")
-    else:
-        print("\nWarning: Unable to locate source file in seed directories. Starting with empty data set.")
-
-    if piece_size > 0:
-        pieces = [
-            file_bytes[offset:offset + piece_size]
-            for offset in range(0, len(file_bytes), piece_size)
-        ]
-        if not pieces:
-            pieces = [b'']
-    else:
-        pieces = [file_bytes]
-
-    return pieces, file_name, file_bytes
-
-
-def initialize_distribution_state(peers, pieces, file_name, original_bytes, seed_assignments, leecher_to_seed, seed_piece_plan):
-    """init distribution state"""
-    total_pieces = len(pieces)
-
-    with distribution_state['lock']:
-        distribution_state['pieces'] = pieces
-        distribution_state['total_pieces'] = total_pieces
-        distribution_state['file_name'] = file_name
-        distribution_state['original_bytes'] = original_bytes
-        distribution_state['peer_paths'] = {}
-        distribution_state['peer_pieces'] = {}
-        distribution_state['peer_completed'] = set()
-        distribution_state['written'] = set()
-        distribution_state['seed_assignments'] = {
-            seed_id: {leecher['peer_id'] for leecher in leechers}
-            for seed_id, leechers in seed_assignments.items()
-        }
-        distribution_state['leecher_to_seed'] = dict(leecher_to_seed)
-        distribution_state['seed_piece_plan'] = {
-            seed_id: set(piece_list)
-            for seed_id, piece_list in seed_piece_plan.items()
-        }
-        distribution_state['seed_ids'] = {
-            peer['peer_id'] for peer in peers if peer['has_file']
-        }
-        distribution_state['peer_roles'] = {
-            peer['peer_id']: peer['has_file'] for peer in peers
-        }
-        distribution_state['am_interested_in'] = {
-            peer['peer_id']: set() for peer in peers
-        }
-        distribution_state['peer_interest_in_me'] = {
-            peer['peer_id']: set() for peer in peers
-        }
-        distribution_state['neighbor_bitfields'] = {}
-        for peer in peers:
-            distribution_state['neighbor_bitfields'][peer['peer_id']] = {}
-        distribution_state['unchoked_out'] = {
-            peer['peer_id']: set() for peer in peers
-        }
-        distribution_state['choked_by'] = {
-            peer['peer_id']: set() for peer in peers
-        }
-        distribution_state['download_bytes'] = {
-            peer['peer_id']: {}   for peer in peers
-        }
-        for me in distribution_state['choked_by'].keys():
-            others = {p['peer_id'] for p in peers if p['peer_id'] != me}
-            distribution_state['choked_by'][me] = others
-        base_dir = CONFIG_DIR
-        for peer in peers:
-            peer_id = peer['peer_id']
-            peer_dir = peer.get('directory') or (base_dir / str(peer_id))
-            peer_dir.mkdir(parents=True, exist_ok=True)
-            distribution_state['peer_paths'][peer_id] = peer_dir
-
-            if peer['has_file']:
-                distribution_state['peer_pieces'][peer_id] = set(range(total_pieces))
-            else:
-                distribution_state['peer_pieces'][peer_id] = set()
-        distribution_state['neighbor_bitfields'] = {
-            p['peer_id']: {} for p in peers
-        }
-        distribution_state['inflight'] = {
-            p['peer_id']: {} for p in peers
-        }
-
-def write_completed_file(peer_id):
-    """write assembled file once"""
-    with distribution_state['lock']:
-        if peer_id in distribution_state['written']:
-            return
-
-        pieces = distribution_state['pieces']
-        file_name = distribution_state['file_name']
-        peer_path = distribution_state['peer_paths'].get(peer_id)
-
-    if peer_path is None:
-        return
-
-    peer_path.mkdir(parents=True, exist_ok=True)
-    output_path = peer_path / file_name
-    with open(output_path, 'wb') as f:
-        for chunk in pieces:
-            f.write(chunk)
-
-    with distribution_state['lock']:
-        distribution_state['written'].add(peer_id)
-
-    print(f"[Peer {peer_id}] Assembled file written to {output_path}")
-
-
-def evaluate_completion(peer_id):
-    """check peer and swarm done"""
-    global shutdown_flag
-    write_targets = []
-    swarm_complete = False
-
-    with distribution_state['lock']:
-        total_pieces = distribution_state['total_pieces']
-        peer_pieces = distribution_state['peer_pieces'].get(peer_id, set())
-
-        if total_pieces == len(peer_pieces):
-            if peer_id not in distribution_state['peer_completed']:
-                distribution_state['peer_completed'].add(peer_id)
-                write_targets.append(peer_id)
-
-        peer_count = len(distribution_state['peer_pieces'])
-        if peer_count and len(distribution_state['peer_completed']) == peer_count:
-            swarm_complete = True
-
-    for pid in write_targets:
-        log_peer(pid, f"Peer {pid} has downloaded the complete file.")
-        write_completed_file(pid)
-
-    if swarm_complete and not shutdown_flag:
-        print("\n" + "="*60)
-        print("All peers now have the complete dataset. Initiating coordinated shutdown.")
-        print("="*60)
-        shutdown_flag = True
-
-
-def reset_project_files(peers, file_name, config_dir: Path):
-    """restore files so only seeds keep data"""
-    base_dir = config_dir
-    removed = []
-    restored = []
-
-    with distribution_state['lock']:
-        original_bytes = distribution_state.get('original_bytes', b'')
-        total_pieces = distribution_state.get('total_pieces', 0)
-
-    for peer in peers:
-        peer_dir = peer.get('directory') or (base_dir / str(peer['peer_id']))
-        target = peer_dir / file_name
-
-        if peer['has_file']:
-            if original_bytes:
-                peer_dir.mkdir(parents=True, exist_ok=True)
-                try:
-                    target.write_bytes(original_bytes)
-                except Exception as exc:
-                    print(f"[Reset] failed to write seed file for {peer['peer_id']}: {exc}")
-            restored.append(peer['peer_id'])
-        else:
-            if target.exists():
-                try:
-                    target.unlink()
-                    removed.append(peer['peer_id'])
-                except Exception as exc:
-                    print(f"[Reset] failed to remove file for {peer['peer_id']}: {exc}")
-
-    with distribution_state['lock']:
-        seed_ids = {peer['peer_id'] for peer in peers if peer['has_file']}
-        for peer in peers:
-            peer_id = peer['peer_id']
-            if peer_id in seed_ids:
-                distribution_state['peer_pieces'][peer_id] = set(range(total_pieces))
-            else:
-                distribution_state['peer_pieces'][peer_id] = set()
-        distribution_state['peer_completed'] = set()
-        distribution_state['written'] = set()
-
-    print("\n" + "="*60)
-    print("Project files reset to initial distribution.")
-    if restored:
-        print(f"  Seeds restored: {sorted(restored)}")
-    if removed:
-        print(f"  Leecher files removed: {sorted(removed)}")
-    print("="*60)
-
-def handle_incoming_connection(peer_id, client_socket, address, outgoing_connections, incoming_connections):
-    """handle incoming peer socket"""
-    print(f"[Peer {peer_id}] Handling connection from {address}")
-    
-    try:
-       # --- Handshake ---
-        their_id = recv_handshake(client_socket)
-        send_handshake(client_socket, peer_id)
-        print(f"[Peer {peer_id}] Handshake OK with {their_id} from {address}")
-        with incoming_connections['lock']:
-            incoming_connections['sockets'][their_id] = client_socket
-        with distribution_state['lock']:
-            distribution_state['incoming_sockets'].setdefault(peer_id, {})[their_id] = client_socket
-            distribution_state['neighbor_locks'].setdefault(their_id, threading.Lock())
-        print(f"[Peer {peer_id}] mapped IN  -> {their_id}")
-
-        log_peer(peer_id, f"Peer {peer_id} is connected from Peer {their_id}.")
-        
-        # --- Send our bitfield right after handshake ---
-        with distribution_state['lock']:
-            my_bits = build_bitfield_bytes(
-                distribution_state['peer_pieces'][peer_id],
-                distribution_state['total_pieces']
-            )
-        send_frame(client_socket, MSG_BITFIELD, my_bits)
-
-        # --- Enter framed-message receive loop ---
-        receiver_loop(peer_id, client_socket, their_id, outgoing_connections, incoming_connections)
-                
-    except Exception as e:
-        if not shutdown_flag:
-            print(f"[Peer {peer_id}] Error handling connection: {e}")
-    finally:
-        try:
-            client_socket.close()
-        except:
-            pass
-
-def accept_connections(peer_id, server_socket, outgoing_connections, incoming_connections):
-    """accept peer sockets"""
-    print(f"[Peer {peer_id}] Ready to accept connections")
-    
-    server_socket.settimeout(1.0)
+def choke_scheduler(peer_id, k, interval):
     
     while not shutdown_flag:
-        try:
-            client_socket, address = server_socket.accept()
-            print(f"[Peer {peer_id}] Accepted connection from {address}")
-            
-            # count incoming connection
-            with incoming_connections['lock']:
-                incoming_connections['count'] += 1
-            
-            # spawn handler thread
-            handler_thread = threading.Thread(
-                target=handle_incoming_connection,
-                args=(peer_id, client_socket, address, outgoing_connections, incoming_connections),
-                daemon=True
-            )
-            handler_thread.start()
-            
-        except socket.timeout:
+        time.sleep(interval)
+
+ 
+        with distribution_state['lock']:
+            outgoing_neighbors = set(distribution_state['outgoing_sockets'].get(peer_id, {}).keys())
+            incoming_neighbors = set(distribution_state['incoming_sockets'].get(peer_id, {}).keys())
+            neighbors = outgoing_neighbors | incoming_neighbors
+
+            interested = distribution_state['peer_interest_in_me'].get(peer_id, set()) & neighbors
+            unchoked_now = set(distribution_state['unchoked_out'].get(peer_id, set()))
+            optimistic = distribution_state['optimistic_peer'].get(peer_id)
+
+
+        if not neighbors:
             continue
-        except Exception as e:
-            if not shutdown_flag:
-                print(f"[Peer {peer_id}] Error accepting connection: {e}")
+
+        scored = []
+        for neighbor_id in interested:
+            r = download_rate(peer_id, neighbor_id, interval)
+            scored.append((-r, random.random(), neighbor_id))
+        scored.sort()
+        preferred = {neighbor_id for _, _, neighbor_id in scored[:k]}
+
+        with distribution_state['lock']:
+            distribution_state['preferred_out'][peer_id] = preferred
+
+        neighbor_list_str = ", ".join(str(pid) for pid in sorted(preferred))
+        log_peer(peer_id, f"Peer {peer_id} has the preferred neighbors [{neighbor_list_str}].")
 
 
-def establish_connections(peer_id, connection_targets, outgoing_connections, incoming_connections):
-    """dial planned peers with retries"""
-    targets = {
-        peer['peer_id']: peer
-        for peer in connection_targets
-        if peer['peer_id'] != peer_id
-    }
-    last_failure_log = {}
+        allow = set(preferred)
+        if optimistic is not None:
+            allow.add(optimistic)
 
-    while targets and not shutdown_flag:
-        for target_id in list(targets.keys()):
-            if shutdown_flag:
-                break
+        to_unchoke = allow - unchoked_now
+        to_choke   = unchoked_now - allow
 
-            if target_id in outgoing_connections:
-                targets.pop(target_id, None)
+        for neighbor_id in to_unchoke:
+            s = sock_for(peer_id, neighbor_id)
+            if not s:
+                print(f"[Peer {peer_id}] WARN: no socket for {neighbor_id} when UNCHOKE")
                 continue
+            send_frame(s, MSG_UNCHOKE, b'')
+            with distribution_state['lock']:
+                distribution_state['unchoked_out'].setdefault(peer_id, set()).add(neighbor_id)
+            print(f"[Peer {peer_id}] -> UNCHOKE to {neighbor_id}")
+            maybe_request_next(peer_id, neighbor_id, s)
 
-            target_peer = targets[target_id]
-            client = None
+        for neighbor_id in to_choke:
+            s = sock_for(peer_id, neighbor_id)
+            if not s:
+                print(f"[Peer {peer_id}] WARN: no socket for {neighbor_id} when CHOKE")
+                continue
+            send_frame(s, MSG_CHOKE, b'')
+            with distribution_state['lock']:
+                distribution_state['unchoked_out'].setdefault(peer_id, set()).discard(neighbor_id)
+            print(f"[Peer {peer_id}] -> CHOKE to {neighbor_id}")
 
-            try:
-                print(f"[Peer {peer_id}] Connecting to peer {target_id} at "
-                      f"{target_peer['hostname']}:{target_peer['port']}")
+def optimistic_unchoke_runner(peer_id, interval_m):
 
-                client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                client.settimeout(5.0)
-                client.connect((target_peer['hostname'], target_peer['port']))
+    last = None
+    while not shutdown_flag:
+        time.sleep(interval_m)
 
-                # --- handshake both ways ---
-                send_handshake(client, peer_id)
-                their_id = recv_handshake(client)
-                print(f"[Peer {peer_id}] Handshake OK with {their_id}")
-                log_peer(peer_id, f"Peer {peer_id} makes a connection to Peer {their_id}.")
-                with distribution_state['lock']:
-                    distribution_state['outgoing_sockets'].setdefault(peer_id, {})[their_id] = client
-                    distribution_state['neighbor_locks'].setdefault(their_id, threading.Lock())
-                print(f"[Peer {peer_id}] mapped OUT -> {their_id}")
+        with distribution_state['lock']:
+            outgoing_neighbors = set(distribution_state['outgoing_sockets'].get(peer_id, {}).keys())
+            incoming_neighbors = set(distribution_state['incoming_sockets'].get(peer_id, {}).keys())
+            neighbors = outgoing_neighbors | incoming_neighbors
 
-                # --- send our bitfield immediately ---
-                with distribution_state['lock']:
-                    my_bits = build_bitfield_bytes(
-                        distribution_state['peer_pieces'][peer_id],
-                        distribution_state['total_pieces']
-                    )
-                send_frame(client, MSG_BITFIELD, my_bits)
+            interested  = distribution_state['peer_interest_in_me'].get(peer_id, set()) & neighbors
+            preferred   = set(distribution_state['preferred_out'].get(peer_id, set()))
+            unchoked    = set(distribution_state['unchoked_out'].get(peer_id, set()))
 
-                client.settimeout(None)
-                outgoing_connections[target_id] = client
-                targets.pop(target_id, None)
-
-                # --- start a receiver for outgoing connection ---
-                threading.Thread(
-                    target=receiver_loop,
-                    args=(peer_id, client, target_id, outgoing_connections, incoming_connections),
-                    daemon=True
-                ).start()
-
-            except Exception as e:
-                if client is not None:
-                    try:
-                        client.close()
-                    except Exception:
-                        pass
-
-                now = time.time()
-                last_logged = last_failure_log.get(target_id, 0)
-                if now - last_logged > 5:
-                    print(f"[Peer {peer_id}] Failed to connect to peer {target_id}: {e} "
-                          f"(retrying)")
-                    last_failure_log[target_id] = now
-
-        if targets and not shutdown_flag:
-            time.sleep(1)
-
-
-def pick_next_piece_to_request(my_id, neighbor_id):
-    with distribution_state['lock']:
-        my_have  = distribution_state['peer_pieces'].get(my_id, set())
-        inflight_vals = distribution_state['inflight'].get(my_id, {}).values()
-        inflight_pieces = {piece for (piece, _) in inflight_vals}
-        nb_map   = distribution_state['neighbor_bitfields'].get(my_id, {})
-
-        avail_counts = {}
-        for nb, have in nb_map.items():
-            for idx in have:
-                if idx not in my_have and idx not in inflight_pieces:
-                    avail_counts[idx] = avail_counts.get(idx, 0) + 1
-
-        candidates = [i for i in nb_map.get(neighbor_id, set())
-                      if i not in my_have and i not in inflight_pieces]
+        candidates = list(interested - preferred - unchoked)
         if not candidates:
-            return None
+            with distribution_state['lock']:
+                distribution_state['optimistic_peer'][peer_id] = None
+            continue
 
-        candidates.sort(key=lambda i: (avail_counts.get(i, 0), i))
-        return candidates[0]
+        pick = random.choice(candidates)
+        if pick == last:
+            continue 
 
-def send_request(my_id, neighbor_id, sock, piece_index):
-    payload = piece_index.to_bytes(4, 'big', signed=False)
-    send_frame(sock, MSG_REQUEST, payload)
-    with distribution_state['lock']:
-        distribution_state['inflight'][my_id][neighbor_id] = (piece_index, time.time())
-    print(f"[Peer {my_id}] -> REQUEST piece {piece_index} to {neighbor_id}")
+        if last is not None and last not in preferred:
+            s_old = sock_for(peer_id, last)
+            if s_old:
+                send_frame(s_old, MSG_CHOKE, b'')
+                with distribution_state['lock']:
+                    distribution_state['unchoked_out'].setdefault(peer_id, set()).discard(last)
+                print(f"[Peer {peer_id}] -> CHOKE (old optimistic) {last}")
 
-def maybe_request_next(my_id, neighbor_id, sock):
-    with distribution_state['lock']:
-        interested = neighbor_id in distribution_state['am_interested_in'].get(my_id, set())
-        unchoked_by_neighbor = neighbor_id not in distribution_state['choked_by'].get(my_id, set())
-        has_inflight = neighbor_id in distribution_state['inflight'].get(my_id, {})
-    if not (interested and unchoked_by_neighbor) or has_inflight:
-        return
-    nxt = pick_next_piece_to_request(my_id, neighbor_id)
-    if nxt is not None:
-        send_request(my_id, neighbor_id, sock, nxt)
 
-def broadcast_have(my_id, piece_index, outgoing_connections, incoming_connections):
-    payload = piece_index.to_bytes(4, 'big', signed=False)
-    with incoming_connections['lock']:
-        inbound = dict(incoming_connections.get('sockets', {}))
-    all_socks = dict(outgoing_connections); all_socks.update(inbound)
+        with distribution_state['lock']:
+            distribution_state['optimistic_peer'][peer_id] = pick
 
-    for nb_id, sock in list(all_socks.items()):
-        try:
-            send_frame(sock, MSG_HAVE, payload)
-        except Exception:
-            pass
-    print(f"[Peer {my_id}] -> HAVE {piece_index} (broadcast)")
+        log_peer(peer_id, f"Peer {peer_id} has the optimistically unchoked neighbor [{pick}].")
 
-def download_rate(my_id, neighbor_id, window_secs) -> float:
-    dq = distribution_state['download_hist'][my_id][neighbor_id]
-    now = time.time()
-    cutoff = now - window_secs
-    total = 0
-    for t, b in dq:
-        if t >= cutoff:
-            total += b
-    elapsed = max(1e-6, now - cutoff)
-    return total / elapsed
+        s_new = sock_for(peer_id, pick)
+        if s_new:
+            send_frame(s_new, MSG_UNCHOKE, b'')
+            with distribution_state['lock']:
+                distribution_state['unchoked_out'].setdefault(peer_id, set()).add(pick)
+            print(f"[Peer {peer_id}] -> OPT-UNCHOKE to {pick}")
+            maybe_request_next(peer_id, pick, s_new)
 
+        last = pick
+
+# --- Per-peer main routine ---
 
 def peer_process(peer_info, all_peers, common_config, seed_assignments,
                  leecher_to_seed, leecher_fairness,
@@ -1167,132 +1277,7 @@ def peer_process(peer_info, all_peers, common_config, seed_assignments,
         except:
             pass
 
-def get_socket_for(neighbor_id, outgoing_connections, incoming_connections):
-    s = outgoing_connections.get(neighbor_id)
-    if not s:
-        s = incoming_connections.get('sockets', {}).get(neighbor_id)
-    return s
-
-def sock_for(my_id, neighbor_id):
-    """
-    Return the socket my_id should use to talk to neighbor_id,
-    using either the outgoing or incoming side.
-    """
-    s = distribution_state['outgoing_sockets'].get(my_id, {}).get(neighbor_id)
-    if s is None:
-        s = distribution_state['incoming_sockets'].get(my_id, {}).get(neighbor_id)
-    return s
-
-
-def choke_scheduler(peer_id, k, interval):
-    
-    while not shutdown_flag:
-        time.sleep(interval)
-
- 
-        with distribution_state['lock']:
-            outgoing_neighbors = set(distribution_state['outgoing_sockets'].get(peer_id, {}).keys())
-            incoming_neighbors = set(distribution_state['incoming_sockets'].get(peer_id, {}).keys())
-            neighbors = outgoing_neighbors | incoming_neighbors
-
-            interested = distribution_state['peer_interest_in_me'].get(peer_id, set()) & neighbors
-            unchoked_now = set(distribution_state['unchoked_out'].get(peer_id, set()))
-            optimistic = distribution_state['optimistic_peer'].get(peer_id)
-
-
-        if not neighbors:
-            continue
-
-        scored = []
-        for neighbor_id in interested:
-            r = download_rate(peer_id, neighbor_id, interval)
-            scored.append((-r, random.random(), neighbor_id))
-        scored.sort()
-        preferred = {neighbor_id for _, _, neighbor_id in scored[:k]}
-
-        with distribution_state['lock']:
-            distribution_state['preferred_out'][peer_id] = preferred
-
-        neighbor_list_str = ", ".join(str(pid) for pid in sorted(preferred))
-        log_peer(peer_id, f"Peer {peer_id} has the preferred neighbors [{neighbor_list_str}].")
-
-
-        allow = set(preferred)
-        if optimistic is not None:
-            allow.add(optimistic)
-
-        to_unchoke = allow - unchoked_now
-        to_choke   = unchoked_now - allow
-
-        for neighbor_id in to_unchoke:
-            s = sock_for(peer_id, neighbor_id)
-            if not s:
-                print(f"[Peer {peer_id}] WARN: no socket for {neighbor_id} when UNCHOKE")
-                continue
-            send_frame(s, MSG_UNCHOKE, b'')
-            with distribution_state['lock']:
-                distribution_state['unchoked_out'].setdefault(peer_id, set()).add(neighbor_id)
-            print(f"[Peer {peer_id}] -> UNCHOKE to {neighbor_id}")
-            maybe_request_next(peer_id, neighbor_id, s)
-
-        for neighbor_id in to_choke:
-            s = sock_for(peer_id, neighbor_id)
-            if not s:
-                print(f"[Peer {peer_id}] WARN: no socket for {neighbor_id} when CHOKE")
-                continue
-            send_frame(s, MSG_CHOKE, b'')
-            with distribution_state['lock']:
-                distribution_state['unchoked_out'].setdefault(peer_id, set()).discard(neighbor_id)
-            print(f"[Peer {peer_id}] -> CHOKE to {neighbor_id}")
-
-def optimistic_unchoke_runner(peer_id, interval_m):
-
-    last = None
-    while not shutdown_flag:
-        time.sleep(interval_m)
-
-        with distribution_state['lock']:
-            outgoing_neighbors = set(distribution_state['outgoing_sockets'].get(peer_id, {}).keys())
-            incoming_neighbors = set(distribution_state['incoming_sockets'].get(peer_id, {}).keys())
-            neighbors = outgoing_neighbors | incoming_neighbors
-
-            interested  = distribution_state['peer_interest_in_me'].get(peer_id, set()) & neighbors
-            preferred   = set(distribution_state['preferred_out'].get(peer_id, set()))
-            unchoked    = set(distribution_state['unchoked_out'].get(peer_id, set()))
-
-        candidates = list(interested - preferred - unchoked)
-        if not candidates:
-            with distribution_state['lock']:
-                distribution_state['optimistic_peer'][peer_id] = None
-            continue
-
-        pick = random.choice(candidates)
-        if pick == last:
-            continue 
-
-        if last is not None and last not in preferred:
-            s_old = sock_for(peer_id, last)
-            if s_old:
-                send_frame(s_old, MSG_CHOKE, b'')
-                with distribution_state['lock']:
-                    distribution_state['unchoked_out'].setdefault(peer_id, set()).discard(last)
-                print(f"[Peer {peer_id}] -> CHOKE (old optimistic) {last}")
-
-
-        with distribution_state['lock']:
-            distribution_state['optimistic_peer'][peer_id] = pick
-
-        log_peer(peer_id, f"Peer {peer_id} has the optimistically unchoked neighbor [{pick}].")
-
-        s_new = sock_for(peer_id, pick)
-        if s_new:
-            send_frame(s_new, MSG_UNCHOKE, b'')
-            with distribution_state['lock']:
-                distribution_state['unchoked_out'].setdefault(peer_id, set()).add(pick)
-            print(f"[Peer {peer_id}] -> OPT-UNCHOKE to {pick}")
-            maybe_request_next(peer_id, pick, s_new)
-
-        last = pick
+# --- Main ---
    
 if __name__ == "__main__":
     
