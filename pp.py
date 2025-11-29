@@ -27,7 +27,14 @@ MSG_PIECE = 7
 def send_all(sock, data):
     view = memoryview(data)
     while view:
-        n = sock.send(view)
+        try:
+            n = sock.send(view)
+        except OSError as e:
+            return
+
+        if n == 0:
+            return
+
         view = view[n:]
 
 def recv_exact(sock, n) -> bytes:
@@ -88,23 +95,37 @@ def parse_bitfield_bytes(b, total_pieces):
             bitidx += 1
     return have
 
-def compute_and_send_interest(my_id, sock, neighbor_id):
+def compute_and_send_interest(my_id, sock, neighbor_id, neighbor_have_hint=None):
+    """
+    Decide whether I'm interested in neighbor_id.
+    neighbor_have_hint: optional fresh 'have' set from a just-received
+    BITFIELD or HAVE message. If not provided, we fall back to the
+    neighbor_bitfields table.
+    """
     with distribution_state['lock']:
-        total = distribution_state['total_pieces']
         my_have = distribution_state['peer_pieces'].get(my_id, set())
-        neighbor_have = distribution_state['neighbor_bitfields'].get(my_id, {}).get(neighbor_id, set())
+
+        if neighbor_have_hint is not None:
+            neighbor_have = set(neighbor_have_hint)
+        else:
+            neighbor_have = distribution_state['neighbor_bitfields'].get(my_id, {}).get(neighbor_id, set())
 
     need = neighbor_have - my_have
+
     if need:
         send_frame(sock, MSG_INTERESTED, b"")
         with distribution_state['lock']:
-            distribution_state['am_interested_in'][my_id].add(neighbor_id)
+            distribution_state['am_interested_in'].setdefault(my_id, set()).add(neighbor_id)
         print(f"[Peer {my_id}] -> INTERESTED to {neighbor_id} (need {len(need)})")
+        log_peer(my_id, f"Peer {my_id} has sent the 'interested' message to Peer {neighbor_id}.")
     else:
         send_frame(sock, MSG_NOTINTERESTED, b"")
         with distribution_state['lock']:
-            distribution_state['am_interested_in'][my_id].discard(neighbor_id)
-        print(f"[Peer {my_id}] -> NOT_INTERESTED to {neighbor_id} (no need)")
+            distribution_state['am_interested_in'].setdefault(my_id, set()).discard(neighbor_id)
+        print(f"[Peer {my_id}] -> NOT INTERESTED to {neighbor_id}")
+        log_peer(my_id, f"Peer {my_id} has sent the 'not interested' message to Peer {neighbor_id}.")
+
+
 
 def set_choke_state(my_id, neighbor_id, sock, choked: bool):
     if choked:
@@ -117,6 +138,29 @@ def set_choke_state(my_id, neighbor_id, sock, choked: bool):
         with distribution_state['lock']:
             distribution_state['unchoked_out'][my_id].add(neighbor_id)
         print(f"[Peer {my_id}] -> UNCHOKE to {neighbor_id}")
+
+def request_watchdog(my_id, timeout=15):
+    while not shutdown_flag:
+        time.sleep(1)
+        with distribution_state['lock']:
+            infl = dict(distribution_state['inflight'].get(my_id, {}))
+        now = time.time()
+        for neighbor_id, val in infl.items():
+            if not isinstance(val, tuple) or len(val) != 2:
+                continue
+            piece_idx, ts = val
+            if now - ts > timeout:
+                s = sock_for(my_id, neighbor_id)
+                if not s:
+                    continue
+                payload = piece_idx.to_bytes(4, 'big', signed=False)
+                try:
+                    send_frame(s, MSG_REQUEST, payload)
+                    with distribution_state['lock']:
+                        distribution_state['inflight'][my_id][neighbor_id] = (piece_idx, now)
+                    print(f"[Peer {my_id}] RETRY piece {piece_idx} with {neighbor_id}")
+                except Exception:
+                    pass
 
 def receiver_loop(peer_id, sock, remote_peer_id_or_addr, outgoing_connections, incoming_connections):
     sock.settimeout(1.0)
@@ -139,35 +183,48 @@ def receiver_loop(peer_id, sock, remote_peer_id_or_addr, outgoing_connections, i
                 total = distribution_state['total_pieces']
                 have = parse_bitfield_bytes(payload, total)
                 if isinstance(remote_peer_id_or_addr, int):
-                    neighbor = distribution_state['neighbor_bitfields'].setdefault(peer_id, {})
-                    neighbor[remote_peer_id_or_addr] = have
-            print(f"[Peer {peer_id}] <- bitfield ({len(payload)} bytes) from {remote_peer_id_or_addr} ({len(have)} pieces)")
+                    nb_map = distribution_state['neighbor_bitfields'].setdefault(peer_id, {})
+                    nb_map[remote_peer_id_or_addr] = set(have)
+
+            print(f"[Peer {peer_id}] <- BITFIELD ({len(payload)} bytes) from "
+                f"{remote_peer_id_or_addr} ({len(have)} pieces)")
+
             if isinstance(remote_peer_id_or_addr, int):
-                compute_and_send_interest(peer_id, sock, remote_peer_id_or_addr)
-                if isinstance(remote_peer_id_or_addr, int):
-                    maybe_request_next(peer_id, remote_peer_id_or_addr, sock)
+                compute_and_send_interest(peer_id, sock, remote_peer_id_or_addr, have)
+                maybe_request_next(peer_id, remote_peer_id_or_addr, sock)
+                    
+                    
         elif msg_type == MSG_INTERESTED:
             if isinstance(remote_peer_id_or_addr, int):
                 with distribution_state['lock']:
                     distribution_state['peer_interest_in_me'][peer_id].add(remote_peer_id_or_addr)
                 print(f"[Peer {peer_id}] <- INTERESTED from {remote_peer_id_or_addr}")    
+                log_peer(peer_id, f"Peer {peer_id} received the 'interested' message from Peer {remote_peer_id_or_addr}.")
+
         elif msg_type == MSG_NOTINTERESTED:
             if isinstance(remote_peer_id_or_addr, int):
                 with distribution_state['lock']:
                     distribution_state['peer_interest_in_me'][peer_id].discard(remote_peer_id_or_addr)
                 print(f"[Peer {peer_id}] <- NOT_INTERESTED from {remote_peer_id_or_addr}")
+                log_peer(peer_id, f"Peer {peer_id} received the 'not interested' message from Peer {remote_peer_id_or_addr}.")
+
         elif msg_type == MSG_CHOKE:
             if isinstance(remote_peer_id_or_addr, int):
                 with distribution_state['lock']:
                     distribution_state['choked_by'][peer_id].add(remote_peer_id_or_addr)
             print(f"[Peer {peer_id}] <- CHOKE from {remote_peer_id_or_addr}")
+            log_peer(peer_id, f"Peer {peer_id} is choked by Peer {remote_peer_id_or_addr}.")
+
 
         elif msg_type == MSG_UNCHOKE:
             if isinstance(remote_peer_id_or_addr, int):
                 with distribution_state['lock']:
                     distribution_state['choked_by'][peer_id].discard(remote_peer_id_or_addr)
             print(f"[Peer {peer_id}] <- UNCHOKE from {remote_peer_id_or_addr}")
+            log_peer(peer_id, f"Peer {peer_id} is unchoked by Peer {remote_peer_id_or_addr}.")
             maybe_request_next(peer_id, remote_peer_id_or_addr, sock)
+            
+            
         elif msg_type == MSG_HAVE:
             if len(payload) != 4:
                 return
@@ -179,7 +236,11 @@ def receiver_loop(peer_id, sock, remote_peer_id_or_addr, outgoing_connections, i
                     pre = len(have_set)
                     have_set.add(piece_index)
                 print(f"[Peer {peer_id}] <- HAVE {piece_index} from {remote_peer_id_or_addr}")
-                compute_and_send_interest(peer_id, sock, remote_peer_id_or_addr)
+                log_peer(peer_id, f"Peer {peer_id} received the 'have' message from Peer {remote_peer_id_or_addr} " f"for the piece {piece_index}.")
+
+
+                print(f"[Peer {peer_id}] <- HAVE {piece_index} from {remote_peer_id_or_addr}")
+                compute_and_send_interest(peer_id, sock, remote_peer_id_or_addr, have_set)
                 maybe_request_next(peer_id, remote_peer_id_or_addr, sock)
         
         elif msg_type == MSG_REQUEST:
@@ -211,8 +272,13 @@ def receiver_loop(peer_id, sock, remote_peer_id_or_addr, outgoing_connections, i
                     distribution_state['peer_pieces'][peer_id].add(piece_index)
                 nb = remote_peer_id_or_addr if isinstance(remote_peer_id_or_addr, int) else None
                 if nb is not None:
-                    distribution_state['inflight'][peer_id].pop(nb, None)
+                    infl = distribution_state['inflight'][peer_id]
+                    if nb in infl:
+                        infl.pop(nb, None)
+                num_pieces = len(distribution_state['peer_pieces'][peer_id])
+                
             print(f"[Peer {peer_id}] <- PIECE {piece_index} ({len(data)} bytes) from {remote_peer_id_or_addr}")
+            log_peer( peer_id, f"Peer {peer_id} has downloaded the piece {piece_index} from Peer {remote_peer_id_or_addr}. " f"Now the number of pieces it has is {num_pieces}.")
 
             broadcast_have(peer_id, piece_index, outgoing_connections, incoming_connections)
 
@@ -264,6 +330,32 @@ distribution_state = {
     'inflight': {}   
     
 }
+
+# --- Logging helpers  ---
+
+log_locks = defaultdict(threading.Lock)
+
+def init_peer_log(peer_id: int):
+    """
+    Create / truncate the log file for this peer.
+    File name: log_peer_<peer_id>.log in the current working directory.
+    """
+    filename = f"log_peer_{peer_id}.log"
+    with log_locks[peer_id]:
+        with open(filename, "w", encoding="utf-8") as f:
+            pass
+
+def log_peer(peer_id: int, message: str):
+    """
+    Append a timestamped line to this peer's log file.
+    """
+    filename = f"log_peer_{peer_id}.log"
+    ts = time.strftime("%m/%d/%Y %H:%M:%S", time.localtime())
+    line = f"{ts}: {message}\n"
+    with log_locks[peer_id]:
+        with open(filename, "a", encoding="utf-8") as f:
+            f.write(line)
+
 
 def signal_handler(sig, frame):
     """handle ctrl+c"""
@@ -568,6 +660,7 @@ def evaluate_completion(peer_id):
             swarm_complete = True
 
     for pid in write_targets:
+        log_peer(pid, f"Peer {pid} has downloaded the complete file.")
         write_completed_file(pid)
 
     if swarm_complete and not shutdown_flag:
@@ -638,10 +731,12 @@ def handle_incoming_connection(peer_id, client_socket, address, outgoing_connect
         with incoming_connections['lock']:
             incoming_connections['sockets'][their_id] = client_socket
         with distribution_state['lock']:
-            distribution_state['incoming_sockets'][their_id] = client_socket
+            distribution_state['incoming_sockets'].setdefault(peer_id, {})[their_id] = client_socket
             distribution_state['neighbor_locks'].setdefault(their_id, threading.Lock())
         print(f"[Peer {peer_id}] mapped IN  -> {their_id}")
 
+        log_peer(peer_id, f"Peer {peer_id} is connected from Peer {their_id}.")
+        
         # --- Send our bitfield right after handshake ---
         with distribution_state['lock']:
             my_bits = build_bitfield_bytes(
@@ -725,8 +820,9 @@ def establish_connections(peer_id, connection_targets, outgoing_connections, inc
                 send_handshake(client, peer_id)
                 their_id = recv_handshake(client)
                 print(f"[Peer {peer_id}] Handshake OK with {their_id}")
+                log_peer(peer_id, f"Peer {peer_id} makes a connection to Peer {their_id}.")
                 with distribution_state['lock']:
-                    distribution_state['outgoing_sockets'][their_id] = client
+                    distribution_state['outgoing_sockets'].setdefault(peer_id, {})[their_id] = client
                     distribution_state['neighbor_locks'].setdefault(their_id, threading.Lock())
                 print(f"[Peer {peer_id}] mapped OUT -> {their_id}")
 
@@ -770,17 +866,18 @@ def establish_connections(peer_id, connection_targets, outgoing_connections, inc
 def pick_next_piece_to_request(my_id, neighbor_id):
     with distribution_state['lock']:
         my_have  = distribution_state['peer_pieces'].get(my_id, set())
-        inflight = set(distribution_state['inflight'].get(my_id, {}).values())
+        inflight_vals = distribution_state['inflight'].get(my_id, {}).values()
+        inflight_pieces = {piece for (piece, _) in inflight_vals}
         nb_map   = distribution_state['neighbor_bitfields'].get(my_id, {})
 
         avail_counts = {}
         for nb, have in nb_map.items():
             for idx in have:
-                if idx not in my_have and idx not in inflight:
+                if idx not in my_have and idx not in inflight_pieces:
                     avail_counts[idx] = avail_counts.get(idx, 0) + 1
 
         candidates = [i for i in nb_map.get(neighbor_id, set())
-                      if i not in my_have and i not in inflight]
+                      if i not in my_have and i not in inflight_pieces]
         if not candidates:
             return None
 
@@ -791,7 +888,7 @@ def send_request(my_id, neighbor_id, sock, piece_index):
     payload = piece_index.to_bytes(4, 'big', signed=False)
     send_frame(sock, MSG_REQUEST, payload)
     with distribution_state['lock']:
-        distribution_state['inflight'][my_id][neighbor_id] = piece_index
+        distribution_state['inflight'][my_id][neighbor_id] = (piece_index, time.time())
     print(f"[Peer {my_id}] -> REQUEST piece {piece_index} to {neighbor_id}")
 
 def maybe_request_next(my_id, neighbor_id, sock):
@@ -838,6 +935,9 @@ def peer_process(peer_info, all_peers, common_config, seed_assignments,
     hostname = peer_info['hostname']
     port = peer_info['port']
     has_file = peer_info['has_file']
+    
+    init_peer_log(peer_id)
+    log_peer(peer_id, f"Peer {peer_id} started on {hostname}:{port}. Has file: {bool(has_file)}.")
     
     print(f"\n[Peer {peer_id}] Starting on {hostname}:{port}, has_file={has_file}")
     
@@ -960,6 +1060,12 @@ def peer_process(peer_info, all_peers, common_config, seed_assignments,
                     args=(peer_id, m),
                     daemon=True).start()
 
+    threading.Thread(
+        target=request_watchdog,
+        args=(peer_id, int(common_config.get('RequestTimeout', 15))),
+        daemon=True
+    ).start()
+
 
 
     last_status_time = time.time()
@@ -1025,11 +1131,16 @@ def get_socket_for(neighbor_id, outgoing_connections, incoming_connections):
         s = incoming_connections.get('sockets', {}).get(neighbor_id)
     return s
 
-def sock_for(peer_id):
-    s = distribution_state['outgoing_sockets'].get(peer_id)
+def sock_for(my_id, neighbor_id):
+    """
+    Return the socket my_id should use to talk to neighbor_id,
+    using either the outgoing or incoming side.
+    """
+    s = distribution_state['outgoing_sockets'].get(my_id, {}).get(neighbor_id)
     if s is None:
-        s = distribution_state['incoming_sockets'].get(peer_id)
+        s = distribution_state['incoming_sockets'].get(my_id, {}).get(neighbor_id)
     return s
+
 
 def choke_scheduler(peer_id, k, interval):
     
@@ -1038,11 +1149,14 @@ def choke_scheduler(peer_id, k, interval):
 
  
         with distribution_state['lock']:
-            neighbors = set(distribution_state['outgoing_sockets'].keys()) | \
-                        set(distribution_state['incoming_sockets'].keys())
+            outgoing_neighbors = set(distribution_state['outgoing_sockets'].get(peer_id, {}).keys())
+            incoming_neighbors = set(distribution_state['incoming_sockets'].get(peer_id, {}).keys())
+            neighbors = outgoing_neighbors | incoming_neighbors
+
             interested = distribution_state['peer_interest_in_me'].get(peer_id, set()) & neighbors
             unchoked_now = set(distribution_state['unchoked_out'].get(peer_id, set()))
             optimistic = distribution_state['optimistic_peer'].get(peer_id)
+
 
         if not neighbors:
             continue
@@ -1057,6 +1171,10 @@ def choke_scheduler(peer_id, k, interval):
         with distribution_state['lock']:
             distribution_state['preferred_out'][peer_id] = preferred
 
+        neighbor_list_str = ", ".join(str(pid) for pid in sorted(preferred))
+        log_peer(peer_id, f"Peer {peer_id} has the preferred neighbors [{neighbor_list_str}].")
+
+
         allow = set(preferred)
         if optimistic is not None:
             allow.add(optimistic)
@@ -1065,7 +1183,7 @@ def choke_scheduler(peer_id, k, interval):
         to_choke   = unchoked_now - allow
 
         for neighbor_id in to_unchoke:
-            s = sock_for(neighbor_id)
+            s = sock_for(peer_id, neighbor_id)
             if not s:
                 print(f"[Peer {peer_id}] WARN: no socket for {neighbor_id} when UNCHOKE")
                 continue
@@ -1076,7 +1194,7 @@ def choke_scheduler(peer_id, k, interval):
             maybe_request_next(peer_id, neighbor_id, s)
 
         for neighbor_id in to_choke:
-            s = sock_for(neighbor_id)
+            s = sock_for(peer_id, neighbor_id)
             if not s:
                 print(f"[Peer {peer_id}] WARN: no socket for {neighbor_id} when CHOKE")
                 continue
@@ -1092,8 +1210,10 @@ def optimistic_unchoke_runner(peer_id, interval_m):
         time.sleep(interval_m)
 
         with distribution_state['lock']:
-            neighbors   = set(distribution_state['outgoing_sockets'].keys()) | \
-                          set(distribution_state['incoming_sockets'].keys())
+            outgoing_neighbors = set(distribution_state['outgoing_sockets'].get(peer_id, {}).keys())
+            incoming_neighbors = set(distribution_state['incoming_sockets'].get(peer_id, {}).keys())
+            neighbors = outgoing_neighbors | incoming_neighbors
+
             interested  = distribution_state['peer_interest_in_me'].get(peer_id, set()) & neighbors
             preferred   = set(distribution_state['preferred_out'].get(peer_id, set()))
             unchoked    = set(distribution_state['unchoked_out'].get(peer_id, set()))
@@ -1109,7 +1229,7 @@ def optimistic_unchoke_runner(peer_id, interval_m):
             continue 
 
         if last is not None and last not in preferred:
-            s_old = sock_for(last)
+            s_old = sock_for(peer_id, last)
             if s_old:
                 send_frame(s_old, MSG_CHOKE, b'')
                 with distribution_state['lock']:
@@ -1120,7 +1240,9 @@ def optimistic_unchoke_runner(peer_id, interval_m):
         with distribution_state['lock']:
             distribution_state['optimistic_peer'][peer_id] = pick
 
-        s_new = sock_for(pick)
+        log_peer(peer_id, f"Peer {peer_id} has the optimistically unchoked neighbor [{pick}].")
+
+        s_new = sock_for(peer_id, pick)
         if s_new:
             send_frame(s_new, MSG_UNCHOKE, b'')
             with distribution_state['lock']:
@@ -1163,9 +1285,9 @@ if __name__ == "__main__":
 
     distribution_state.setdefault('download_hist', defaultdict(lambda: defaultdict(deque)))
 
-    distribution_state.setdefault('outgoing_sockets', {})
-    distribution_state.setdefault('incoming_sockets', {})
-    distribution_state.setdefault('neighbor_locks', {})
+    distribution_state.setdefault('outgoing_sockets', defaultdict(dict))
+    distribution_state.setdefault('incoming_sockets', defaultdict(dict))
+    distribution_state.setdefault('neighbor_locks', defaultdict(threading.Lock))
     
     distribution_state.setdefault('preferred_out', defaultdict(set))
 

@@ -1,0 +1,810 @@
+11/28/2025 22:01:19: Peer 1001 started on localhost:7001. Has file: True.
+11/28/2025 22:01:20: Peer 1001 has downloaded the complete file.
+11/28/2025 22:01:21: Peer 1001 is connected from Peer 1002.
+11/28/2025 22:01:21: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:21: Peer 1001 received the 'interested' message from Peer 1002.
+11/28/2025 22:01:21: Peer 1001 is connected from Peer 1003.
+11/28/2025 22:01:21: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:21: Peer 1001 received the 'interested' message from Peer 1003.
+11/28/2025 22:01:22: Peer 1001 is connected from Peer 1004.
+11/28/2025 22:01:22: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:22: Peer 1001 received the 'interested' message from Peer 1004.
+11/28/2025 22:01:25: Peer 1001 has the preferred neighbors [1003, 1004].
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 0.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 0.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 1.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 1.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 2.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 2.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 3.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 3.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 4.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 4.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 5.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 5.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 6.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 6.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 7.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 7.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 8.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 8.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 9.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 9.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 10.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 10.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 11.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 11.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 12.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 12.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 13.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 13.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 14.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 14.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 15.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 15.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 16.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 16.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 17.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 17.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 18.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 18.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 19.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 20.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 19.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 20.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 21.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 21.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 22.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 22.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 23.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 24.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 23.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 25.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 24.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 26.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 25.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 27.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 26.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 28.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 27.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 29.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 28.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 30.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 29.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 31.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 30.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 32.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 31.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 33.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 32.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 34.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 33.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 35.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 34.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 36.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 35.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 37.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 36.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 38.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 37.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 39.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 38.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 40.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 39.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 41.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 40.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 42.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 41.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 43.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 42.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 44.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 43.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 45.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 44.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 46.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 45.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 47.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 46.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 48.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 47.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 49.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 48.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 50.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 49.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 51.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 50.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 52.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 51.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 53.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 52.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 54.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 53.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 55.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 54.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 56.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 55.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 57.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 56.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 58.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 57.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 59.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 58.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 60.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 59.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 61.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 60.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 62.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 61.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 63.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 62.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 64.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 63.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 65.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 64.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 66.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 65.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1004 for the piece 67.
+11/28/2025 22:01:25: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:25: Peer 1001 received the 'have' message from Peer 1003 for the piece 66.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 68.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 67.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 69.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 68.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 70.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 69.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 71.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 70.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 72.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 71.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 73.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 72.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 74.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 73.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 75.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 74.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 76.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 75.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 77.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 76.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 78.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 77.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 79.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 78.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 80.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 79.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 81.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 80.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 82.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 81.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 83.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 82.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 84.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 83.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 85.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 84.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 86.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 85.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 87.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 86.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 88.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 87.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 89.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 88.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 90.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 89.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 91.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 90.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 92.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 91.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 93.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 92.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 94.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 93.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 95.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 94.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 96.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 95.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 97.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 96.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 98.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 97.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 99.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 98.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 100.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 99.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 101.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 100.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 102.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 101.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 103.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 102.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 104.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 103.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 105.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 104.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 106.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 105.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 107.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 106.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 108.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 107.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 109.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 108.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 110.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 109.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 111.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 110.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 112.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 111.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 113.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 112.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 114.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 113.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 115.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 114.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 116.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 115.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 117.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 116.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 118.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 117.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 119.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 118.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 120.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 119.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 121.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 120.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 122.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 121.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 123.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 122.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 124.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 123.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 125.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 124.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 126.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 125.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 127.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 126.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 128.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 127.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 129.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 128.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 130.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 129.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 130.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 131.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 131.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1004 for the piece 132.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1004.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1003 for the piece 132.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1003.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 0.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 1.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 2.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 3.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 4.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 5.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 6.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 7.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 8.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 9.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 10.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 11.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 12.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 13.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 14.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 15.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 16.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 17.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 18.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 19.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 20.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 21.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 22.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 23.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 24.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 25.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 26.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 27.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 28.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 29.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 30.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 31.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 32.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 33.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 34.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 35.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 36.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 37.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 38.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 39.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 40.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 41.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 42.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 43.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 44.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 45.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 46.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 47.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 48.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 49.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 50.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 51.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 52.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 53.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 54.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 55.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 56.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 57.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 58.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 59.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 60.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 61.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 62.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 63.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 64.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 65.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 66.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 67.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 68.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 69.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 70.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 71.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 72.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 73.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 74.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 75.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 76.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 77.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 78.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 79.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 80.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 81.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 82.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 83.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 84.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 85.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 86.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 87.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 88.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 89.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 90.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 91.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 92.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 93.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 94.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 95.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 96.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 97.
+11/28/2025 22:01:26: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:26: Peer 1001 received the 'have' message from Peer 1002 for the piece 98.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 99.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 100.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 101.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 102.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 103.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 104.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 105.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 106.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 107.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 108.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 109.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 110.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 111.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 112.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 113.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 114.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 115.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 116.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 117.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 118.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 119.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 120.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 121.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 122.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 123.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 124.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 125.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 127.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 126.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 128.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 130.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 129.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 131.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
+11/28/2025 22:01:27: Peer 1001 received the 'have' message from Peer 1002 for the piece 132.
+11/28/2025 22:01:27: Peer 1001 has sent the 'not interested' message to Peer 1002.
