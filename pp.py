@@ -9,6 +9,8 @@ from pathlib import Path
 import argparse
 from collections import defaultdict, deque
 
+CONFIG_DIR: Path | None = None
+
 # --- Protocol constants ---
 PSTR = b"P2PFILESHARINGPROJ"          # 18 bytes
 HS_RESERVED = b"\x00" * 10            # 10 bytes
@@ -22,6 +24,34 @@ MSG_HAVE = 4
 MSG_BITFIELD = 5
 MSG_REQUEST = 6
 MSG_PIECE = 7
+
+def find_config_dir(explicit: str | None) -> Path:
+    """
+    Decide which directory to use for Common.cfg and PeerInfo.cfg.
+    Priority:
+      1) --config-dir value if given
+      2) current directory
+      3) ./tcp_config_small
+      4) ./tcp_config_large
+    """
+    candidates: list[Path] = []
+    if explicit:
+        candidates.append(Path(explicit))
+
+    candidates.append(Path("."))  # spec-style layout
+    candidates.append(Path("tcp_config_small"))
+    candidates.append(Path("tcp_config_large"))
+
+    for base in candidates:
+        if (base / "Common.cfg").exists() and (base / "PeerInfo.cfg").exists():
+            return base
+
+    raise FileNotFoundError(
+        "Could not find Common.cfg and PeerInfo.cfg. "
+        "Tried: " + ", ".join(str(c) for c in candidates)
+    )
+
+
 
 # --- Socket helpers ---
 def send_all(sock, data):
@@ -300,7 +330,7 @@ def receiver_loop(peer_id, sock, remote_peer_id_or_addr, outgoing_connections, i
             pass
 
 # testing flag for dev runs
-TESTING = True  # toggle flag
+TESTING = False  # toggle flag
 
 # shutdown flag
 shutdown_flag = False
@@ -369,52 +399,64 @@ def signal_handler(sig, frame):
 # register signal handler
 signal.signal(signal.SIGINT, signal_handler)
 
-def read_common_config(filename='tcp_config_small/Common.cfg'):
-    """load common cfg"""
+def read_common_config(config_dir: Path, filename: str | None = None):
+    if filename is None:
+        filename = config_dir / "Common.cfg"
+    else:
+        filename = Path(filename)
+
     config = {}
-    with open(filename, 'r') as f:
+    with open(filename, "r") as f:
         for line in f:
             line = line.strip()
-            if line:
-                parts = line.split()
-                if len(parts) == 2:
-                    key, value = parts
-                    if key in ['NumberOfPreferredNeighbors', 'UnchokingInterval', 
-                              'OptimisticUnchokingInterval', 'FileSize', 'PieceSize']:
-                        config[key] = int(value)
-                    else:
-                        config[key] = value
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split()
+            if len(parts) == 2:
+                key, value = parts
+                config[key] = int(value) if value.isdigit() else value
     return config
 
-def read_peer_info(filename='tcp_config_small/PeerInfo.cfg'):
-    """load peer info for testing"""
+
+def read_peer_info(config_dir: Path, filename: str | None = None):
+    if filename is None:
+        filename = config_dir / "PeerInfo.cfg"
+    else:
+        filename = Path(filename)
+
     peers = []
-    with open(filename, 'r') as f:
+    with open(filename, "r") as f:
         for line in f:
             line = line.strip()
-            if line:
-                parts = line.split()
-                if len(parts) == 4:
-                    peer = {
-                        'peer_id': int(parts[0]),
-                        'hostname': parts[1],
-                        'port': int(parts[2]),
-                        'has_file': int(parts[3]) == 1,
-                        'directory': Path('tcp_config_small') / parts[0]
-                    }
-                    peers.append(peer)
-    
-    # override host and port in test
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split()
+            if len(parts) != 4:
+                continue
+            peer_id_str, host, port_str, has_file_flag = parts
+            peer = {
+                "peer_id": int(peer_id_str),
+                "hostname": host,
+                "port": int(port_str),
+                "has_file": has_file_flag == "1",
+                "directory": config_dir / peer_id_str,
+            }
+            peers.append(peer)
+
+    # Optional local override (see next section)
     if TESTING:
-        print("\n" + "!"*60)
-        print("TESTING MODE: Converting to localhost with unique ports")
-        print("!"*60 + "\n")
-        
-        for i, peer in enumerate(peers):
-            peer['hostname'] = 'localhost'
-            peer['port'] = 6000 + peer['peer_id']  # peer id as port offset
-    
+        print("\n" + "!" * 60)
+        print("TESTING mode: overriding host/port to localhost:6000+peer_id")
+        ids = [p["peer_id"] for p in peers]
+        min_peer_id = min(ids)
+        for peer in peers:
+            peer["hostname"] = "127.0.0.1"
+            peer["port"] = 6000 + peer["peer_id"]
+            peer["directory"] = config_dir / str(peer["peer_id"])
+
     return peers
+
+
 
 
 def assign_leechers_to_seeds(peers):
@@ -511,7 +553,7 @@ def plan_piece_distribution(peers, common_config):
     return assignments, summary
 
 
-def load_file_pieces(peers, common_config):
+def load_file_pieces(peers, common_config, config_dir: Path):
     """read source file into pieces"""
     file_name = common_config.get('FileName', 'thefile')
     piece_size = common_config.get('PieceSize', 0) or 0
@@ -523,7 +565,7 @@ def load_file_pieces(peers, common_config):
             if candidate is not None:
                 candidate_path = candidate / file_name
             else:
-                candidate_path = Path('tcp_config_small') / str(peer['peer_id']) / file_name
+                candidate_path = config_dir / str(peer["peer_id"]) / file_name
             if candidate_path.exists():
                 source_path = candidate_path
                 break
@@ -597,7 +639,7 @@ def initialize_distribution_state(peers, pieces, file_name, original_bytes, seed
         for me in distribution_state['choked_by'].keys():
             others = {p['peer_id'] for p in peers if p['peer_id'] != me}
             distribution_state['choked_by'][me] = others
-        base_dir = Path('tcp_config_small')
+        base_dir = CONFIG_DIR
         for peer in peers:
             peer_id = peer['peer_id']
             peer_dir = peer.get('directory') or (base_dir / str(peer_id))
@@ -670,9 +712,9 @@ def evaluate_completion(peer_id):
         shutdown_flag = True
 
 
-def reset_project_files(peers, file_name):
+def reset_project_files(peers, file_name, config_dir: Path):
     """restore files so only seeds keep data"""
-    base_dir = Path('tcp_config_small')
+    base_dir = config_dir
     removed = []
     restored = []
 
@@ -1256,16 +1298,21 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser()
     parser.add_argument("peer_id", nargs="?", type=int, help="run only this peer id")
+    parser.add_argument("--config-dir", default=None, help="directory containing Common.cfg, PeerInfo.cfg, and peer folders",)
     parser.add_argument("--no-reset", action="store_true", help="keep files after run")
     parser.add_argument("--reset", action="store_true", help="reset project files then exit")
     args = parser.parse_args()
     
     # read configs
-    common_config = read_common_config()
-    all_peers = read_peer_info()
+    CONFIG_DIR = find_config_dir(args.config_dir)
+    print(f"\nUsing config directory: {CONFIG_DIR}\n")
+    
+    
+    common_config = read_common_config(CONFIG_DIR)
+    all_peers = read_peer_info(CONFIG_DIR)
     seed_assignments, leecher_to_seed, leecher_fairness = assign_leechers_to_seeds(all_peers)
     seed_piece_plan, piece_plan_summary = plan_piece_distribution(all_peers, common_config)
-    pieces, file_name, original_bytes = load_file_pieces(all_peers, common_config)
+    pieces, file_name, original_bytes = load_file_pieces(all_peers, common_config, CONFIG_DIR)
     initialize_distribution_state(
         all_peers,
         pieces,
@@ -1276,7 +1323,7 @@ if __name__ == "__main__":
         seed_piece_plan
     )
     if args.reset:
-        reset_project_files(all_peers, file_name)
+        reset_project_files(all_peers, file_name, CONFIG_DIR)
         sys.exit(0)
     
     distribution_state.setdefault('peer_interest_in_me', defaultdict(set))
@@ -1371,4 +1418,4 @@ if __name__ == "__main__":
     print("All peers stopped.")
     
     if not args.no_reset:
-        reset_project_files(all_peers, file_name)
+        reset_project_files(all_peers, file_name, CONFIG_DIR)
