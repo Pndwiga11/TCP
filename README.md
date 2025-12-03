@@ -5,6 +5,7 @@ Teammates
 - Dominick Dupuy
 - Phillip-Dylan Ndwiga
 - Hemdutt Rao
+*Work was evenly split amongst teammates
 
 Language and entry point
 - Python 3
@@ -166,4 +167,4 @@ Logging
     - "Peer X has downloaded the complete file."
 
 Demo video
-- 
+- https://youtu.be/17R6_tzqE2M
